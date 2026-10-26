@@ -1,0 +1,1 @@
+{"adapter":"synthetic-projection-v1","check":"source-view-drift","source":"source.json","view":"view.json","acceptance_test":"acceptance.json","allow_repair":true}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Proof Loop built-in drift log 2",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "runner",
+    "runner_version",
+    "run_id",
+    "check",
+    "state",
+    "exit_code",
+    "reason",
+    "source",
+    "source_sha256",
+    "view",
+    "view_sha256",
+    "expected",
+    "actual",
+    "coverage",
+    "checked_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "runner": {
+      "const": "proofloop-drift"
+    },
+    "runner_version": {
+      "const": "0.2.1"
+    },
+    "check": {
+      "const": "source-view-drift"
+    },
+    "state": {
+      "enum": [
+        "pass",
+        "fail"
+      ]
+    },
+    "exit_code": {
+      "type": "integer",
+      "enum": [
+        0,
+        1
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "exit_code": {
+            "const": 1
+          }
+        }
+      }
+    }
+  ]
+}

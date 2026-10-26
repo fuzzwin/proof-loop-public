@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/proofloop/receipt.schema.json",
+  "title": "Proof Loop receipt",
+  "type": "object",
+  "required": [
+    "acceptance_baseline_sha256",
+    "acceptance_tests_sha256",
+    "checker_version",
+    "checks",
+    "claims",
+    "coverage",
+    "created_at",
+    "environment",
+    "exceptions",
+    "execution_observations",
+    "expires_at",
+    "human_decision",
+    "independent_review",
+    "input_manifest_sha256",
+    "outputs",
+    "repair_rounds_used",
+    "revision",
+    "run_id",
+    "run_state",
+    "schema_version",
+    "baseline_pin_sha256",
+    "acceptance_mode"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 3
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_state": {
+      "enum": [
+        "in_progress",
+        "passed_for_scope",
+        "failed",
+        "blocked",
+        "cancelled",
+        "superseded"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "input_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptance_tests_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "state",
+          "reason"
+        ],
+        "properties": {
+          "state": {
+            "enum": [
+              "pass",
+              "fail",
+              "blocked",
+              "not_run",
+              "not_applicable"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "log": {
+            "type": "object",
+            "required": [
+              "path",
+              "sha256",
+              "runner"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "runner": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "independent_review": {
+      "type": "object",
+      "required": [
+        "status",
+        "reviewer"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "pass",
+            "not_run",
+            "not_applicable"
+          ]
+        },
+        "reviewer": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label",
+          "claim"
+        ],
+        "properties": {
+          "label": {
+            "enum": [
+              "Verified",
+              "Reported",
+              "Inferred",
+              "Unknown"
+            ]
+          },
+          "claim": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": [
+              "string",
+              "array"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string"
+          },
+          "open_question": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "claim_type": {
+            "const": "check_pass"
+          },
+          "check": {
+            "type": "string"
+          },
+          "supports_checks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "checked",
+        "not_checked"
+      ],
+      "properties": {
+        "checked": {
+          "type": "array"
+        },
+        "not_checked": {
+          "type": "array"
+        }
+      }
+    },
+    "exceptions": {
+      "type": "array"
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      }
+    },
+    "human_decision": {
+      "enum": [
+        "not_required",
+        "approved",
+        "pending",
+        "rejected"
+      ]
+    },
+    "repair_rounds_used": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "checker_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "object",
+      "required": [
+        "python",
+        "platform"
+      ],
+      "properties": {
+        "python": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "execution_observations": {
+      "type": "object"
+    },
+    "acceptance_baseline_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "baseline_pin_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "acceptance_mode": {
+      "enum": [
+        "acceptance_required",
+        "advisory"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

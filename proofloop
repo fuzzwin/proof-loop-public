@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+import sys
+
+# Suppress bytecode before importing any project module, including for status.
+sys.dont_write_bytecode = True
+
+from proofloop import main
+
+if len(sys.argv) > 1 and sys.argv[1] == 'agent-status':
+    import argparse
+    from agent_bridge import status_command, status_report
+    import json
+
+    class StatusParser(argparse.ArgumentParser):
+        def error(self, message):
+            raise ValueError(message)
+
+    parser = StatusParser(prog='proofloop agent-status', description='Inspect persisted agent evidence without executing or writing anything')
+    parser.add_argument('--root', required=True)
+    parser.add_argument('--run-id', required=True)
+    parser.add_argument('--plan', required=True)
+    try:
+        args = parser.parse_args(sys.argv[2:])
+    except ValueError as exc:
+        report = status_report(None)
+        report['freshness']['issues'].append(str(exc))
+        print(json.dumps(report, allow_nan=False))
+        raise SystemExit(2)
+    raise SystemExit(status_command(args))
+
+raise SystemExit(main())

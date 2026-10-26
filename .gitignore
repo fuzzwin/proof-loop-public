@@ -1,0 +1,14 @@
+# Local OS/editor artifacts
+.DS_Store
+Thumbs.db
+
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+
+# Proof Loop local writer lock and Codex debug logs
+.proof.write.lock
+.codex-log/
+
+# Project-local run state (may include environment and task data)
+.proof/

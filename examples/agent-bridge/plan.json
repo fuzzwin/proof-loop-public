@@ -1,0 +1,13 @@
+{
+  "goal": "Fix app.py so add(left, right) returns the sum, satisfying requirements.txt and the protected checks.",
+  "files": ["app.py", "check.py", "requirements.txt"],
+  "editable": ["app.py"],
+  "protected": ["check.py", "requirements.txt"],
+  "quality": [["{python}", "-B", "check.py"]],
+  "specialists": [],
+  "max_repairs": 2,
+  "max_agent_calls": 6,
+  "agent_timeout_seconds": 120,
+  "check_timeout_seconds": 20,
+  "max_run_seconds": 600
+}

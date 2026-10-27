@@ -1,0 +1,9 @@
+{
+  "contract_id": "synthetic-source-view-v1",
+  "frozen_acceptance": [
+    "view.record_count equals source item count",
+    "view.ids equals source IDs in order",
+    "view fixture_classification is synthetic"
+  ],
+  "owner": "fixture"
+}

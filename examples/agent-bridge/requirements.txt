@@ -1,0 +1,3 @@
+The add(left, right) function must return the sum of its two arguments.
+Only app.py may change. Preserve check.py and this requirement file exactly.
+This is synthetic demonstration code, not a real application.

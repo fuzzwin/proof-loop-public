@@ -1,0 +1,9 @@
+# Selected self-improvement patterns
+
+Read-only primary-source review, 24 October 2026. Patterns were implemented as original small abstractions; no code or dependencies were imported. Popularity is discovery evidence, not proof of reliability or suitability.
+
+1. **GEPA**: failure/evaluation-driven candidate lineage and bounded budgets. [Pinned API](https://github.com/gepa-ai/gepa/blob/7af5f0c5c79fcc16b2d5248b187d0864683edd4d/src/gepa/api.py). Its `valset=None` reuses training data; selection validation must not be represented as untouched holdout. Adopt: frozen evaluator/data/candidate attribution, explicit one-attempt holdout budget. Do not adopt: unconstrained optimization or candidate auto-deployment.
+2. **Cloudflare security-audit-skill**: found on GitHub Trending during this review; [pinned validation/reporting](https://github.com/cloudflare/security-audit-skill/blob/c1c8a8c1471069fb0e188eeaff69b8e8db6564a8/skills/security-audit/VALIDATION-AND-REPORTING.md). Adopt: fresh reviewer, source-bound coverage and revalidation after material change. Format validity is not correctness. This does not make Proof Loop a complete security scanner.
+3. **Paperclip**: [pinned task workflow](https://github.com/paperclipai/paperclip/blob/ee29e2850d0edc6cf11be9a8166a7829bce9c311/skills/paperclip/SKILL.md). Adopt: expected-state ownership, stop on conflict, run-attributed results and first-class blockers. Do not adopt: autonomous organization permissions or spending.
+
+All three upstream MIT licenses were inspected. This is not an upstream execution benchmark or dependency endorsement. In Proof Loop, evaluator outcomes remain attributed reports until the applicable independent acceptance path exists. Learning can propose better approaches; it cannot redefine success, authorize itself, alter security gates or claim a holdout remains untouched after exposure.

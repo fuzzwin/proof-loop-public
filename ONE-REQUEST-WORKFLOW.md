@@ -65,7 +65,8 @@ The request supplies the goal. It cannot expand file permissions, select new com
 raise budgets. The profile cannot authorize edits to itself.
 Every declared noneditable file and every declared file's parent directories must already
 exist. Prospective files are allowed only in editable scope. Paths containing control
-characters or special permission bits are unsupported.
+characters, reserved control-directory aliases or special permission bits are unsupported.
+Use a canonical project root rather than a symlink.
 
 New profiles default to two repair rounds, six agent calls, 180 seconds per agent,
 30 seconds per check and 600 seconds total. Profiles imported from a plan keep its limits
@@ -101,4 +102,6 @@ journal recovery through `agent-recover --finish-promotion`. See [the bridge gui
 To route ordinary chat requests through `fix`, review and merge the optional
 [Codex project instructions](templates/codex/AGENTS.md), setting the toolkit path and profile
 for that project. Setup does not automatically activate other chats or install a background
-service. Local evidence can contain task data and is never uploaded automatically.
+service. Local evidence can contain task data and is never uploaded automatically. New task
+and agent-run directories are private to the owner. An existing run directory with group or
+other access is blocked for inspection rather than silently changing its permissions.

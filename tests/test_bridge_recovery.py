@@ -82,6 +82,35 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual('OTHER = 2\n', (self.root / 'other.py').read_text())
         self.assertEqual(calls, len(self.host.calls))
 
+    def test_recovery_refuses_directory_mode_drift_before_writing(self):
+        self.two_files()
+        loop = self.interrupt_promotion()
+        original_mode = self.root.stat().st_mode & 0o777
+        self.root.chmod(original_mode ^ 0o010)
+        with self.assertRaisesRegex(ValueError, 'directory permissions changed before promotion'):
+            loop.recover_promotion()
+        self.assertEqual('OTHER = 1\n', (self.root / 'other.py').read_text())
+        self.assertEqual('blocked_uncertain', loop.state['status'])
+        self.assertIsNotNone(loop.state['active'])
+        self.root.chmod(original_mode)
+        self.assertEqual('completed_advisory', loop.recover_promotion()['state'])
+
+    def test_recovery_does_not_persist_completion_if_final_freshness_fails(self):
+        self.two_files()
+        loop = self.interrupt_promotion()
+        original_fresh = loop.fresh
+        def fail_final(source=True):
+            if source and (self.root / 'other.py').read_text() == 'OTHER = 2\n':
+                raise ValueError('synthetic final freshness failure')
+            return original_fresh(source=source)
+        with patch.object(loop, 'fresh', side_effect=fail_final):
+            with self.assertRaisesRegex(ValueError, 'final freshness failure'):
+                loop.recover_promotion()
+        persisted = json.loads(loop.state_path.read_text())
+        self.assertEqual('blocked_uncertain', persisted['status'])
+        self.assertIsNotNone(persisted['active'])
+        self.assertEqual('completed_advisory', loop.recover_promotion()['state'])
+
     def test_recovery_refuses_external_edit_and_retains_it(self):
         self.two_files()
         loop = self.interrupt_promotion()

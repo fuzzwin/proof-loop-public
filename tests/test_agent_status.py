@@ -98,6 +98,21 @@ class AgentStatusTests(unittest.TestCase):
         self.assertEqual(report['acceptance'], 'not_accepted')
         self.assertEqual((self.directory / 'state.json').read_bytes(), before)
 
+    def test_legacy_control_character_paths_remain_inspectable(self):
+        name = 'legacy\tdata.txt'
+        (self.root / name).write_text('legacy data\n')
+        self.plan['files'].append(name)
+        checksum = hashlib.sha256((self.root / name).read_bytes()).hexdigest()
+        self.state['initial'][name] = checksum
+        self.state['expected'][name] = checksum
+        raw = encoded(self.plan)
+        plan_path = self.root / 'legacy\tplan.json'
+        plan_path.write_bytes(raw)
+        self.state['plan_sha256'] = hashlib.sha256(raw).hexdigest()
+        self.save()
+        report = bridge.read_status(self.root, 'unit', 'legacy\tplan.json')
+        self.assertEqual('current', report['freshness']['state'], report)
+
     def test_missing_editable_creation_is_stale(self):
         (self.root / 'future.py').write_text('new = True\n')
         self.assertEqual(self.inspect()['freshness']['state'], 'stale')

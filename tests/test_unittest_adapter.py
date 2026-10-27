@@ -80,6 +80,12 @@ class AdapterTests(unittest.TestCase):
         self.assertIn('nonexistent_synthetic_dependency', result['collection_errors'][0]['error'])
         self.assertEqual(['test_sample.T.test_one'], result['coverage']['missing'])
 
+    def test_import_time_system_exit_is_failed_collection(self):
+        result = self.run_suite('import sys\nsys.exit(7)\n', ['test_sample.T.test_one'])
+        self.assertFalse(result['passed'])
+        self.assertIn('SystemExit: 7', result['collection_errors'][0]['error'])
+        self.assertEqual(['test_sample.T.test_one'], result['coverage']['missing'])
+
     def test_real_multifile_repair_requirement_evidence_and_replay(self):
         example = Path(bridge.__file__).parent / 'examples' / 'order-total'
         shutil.copytree(example, self.workspace, dirs_exist_ok=True)

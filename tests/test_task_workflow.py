@@ -95,11 +95,36 @@ class TaskWorkflowTests(unittest.TestCase):
     def test_partial_intake_is_not_overwritten_or_dispatched(self):
         partial = self.root / '.proof/tasks/fix'
         partial.mkdir(parents=True)
+        partial.chmod(0o700)
         (partial / 'request.txt').write_text('preserved partial request')
         result = self.run_fix()
         self.assertEqual('blocked', result['outcome'])
         self.assertIn('overwrite', result['blocker']['reason'])
         self.assertEqual('preserved partial request', (partial / 'request.txt').read_text())
+        self.assertEqual([], self.host.calls)
+
+    def test_control_and_profile_aliases_are_rejected_before_dispatch(self):
+        for name in ('.Proof/control.txt', '.GIT/config', '.ｐｒｏｏｆ/control.txt', 'Proofloop-Project.json'):
+            with self.subTest(path=name):
+                self.scope['files'] = ['app.py', 'check.py', name]
+                self.scope['editable'] = ['app.py', name]
+                self.profile()
+                result = self.run_fix()
+                self.assertEqual('blocked', result['outcome'])
+                self.assertTrue('control/runtime' in result['blocker']['reason'] or
+                                'profile cannot be editable' in result['blocker']['reason'], result)
+                self.assertEqual([], self.host.calls)
+                self.assertFalse((self.root / '.proof').exists())
+
+    def test_hardlinked_profile_cannot_be_editable(self):
+        alias = self.root / 'alias.json'
+        alias.hardlink_to(self.root / 'proofloop-project.json')
+        self.scope['files'].append('alias.json')
+        self.scope['editable'].append('alias.json')
+        self.profile()
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('profile cannot be editable', result['blocker']['reason'])
         self.assertEqual([], self.host.calls)
 
     def test_changed_request_never_redispatches(self):

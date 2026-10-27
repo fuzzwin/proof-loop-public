@@ -176,7 +176,9 @@ one-request `fix` path returns a patch and does not perform source promotion.
 Evidence lives under `.proof/agent-runs/RUN/`: frozen state, snapshots, command
 arguments, process references, raw events, final responses, prior file contents
 and nested hashes. These logs can contain task data; they are local, not
-published automatically. Status 0 means a checkpoint or completed advisory run;
+published automatically. New run directories are private to the owner, and the bridge
+refuses an existing nonprivate run directory instead of silently changing its permissions.
+Status 0 means a checkpoint or completed advisory run;
 blocked, cancelled and uncertain work return non-success.
 
 ## Boundaries

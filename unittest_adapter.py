@@ -5,6 +5,7 @@ Executed in a frozen project snapshot. Exact files and test IDs come from the pl
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import traceback
@@ -28,7 +29,7 @@ def main():
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
             suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(module))
-        except Exception:
+        except (Exception, SystemExit):
             collection_errors.append({'file': name, 'error': traceback.format_exc(limit=12)[-12000:]})
 
     class Result(unittest.TextTestResult):
@@ -94,7 +95,8 @@ def main():
             'tests': result.records, 'tests_run': result.testsRun, 'passed': passed,
             'test_files': {n: hashlib.sha256(Path(n).read_bytes()).hexdigest() for n in test_files},
             'collection_errors': collection_errors, 'fixture_errors': result.fixture_errors, 'coverage': coverage}
-    with report.open('x') as stream:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+    with os.fdopen(os.open(report, flags, 0o600), 'w') as stream:
         json.dump(data, stream, sort_keys=True)
     return 0 if passed else 1
 

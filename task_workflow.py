@@ -6,6 +6,7 @@ No planner model, shell strings, automatic promotion, or background work is adde
 import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import uuid
@@ -31,8 +32,14 @@ def read_profile(root, name):
     plan = profile['plan']
     require(isinstance(plan, dict) and PROFILE_FIELDS <= set(plan) and
             set(plan) <= PROFILE_FIELDS | {'test_adapter'}, 'invalid project profile fields')
+    if isinstance(plan['editable'], list) and all(isinstance(item, str) for item in plan['editable']):
+        require(all(bridge.normalized_name(name) != bridge.normalized_name(item) for item in plan['editable']),
+                'project profile cannot be editable')
     bridge.validate_plan({**plan, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
-    require(name not in plan['editable'], 'project profile cannot be editable')
+    for item in plan['editable']:
+        editable = bridge.file_path(root, item, optional=True)
+        require(not editable.exists() or not os.path.samefile(path, editable),
+                'project profile cannot be editable through a file alias')
     expected = bridge.file_map(root, plan['files'])
     bridge.directory_modes(root, plan['files'])
     require(all(expected[n] is not None for n in set(plan['files']) - set(plan['editable'])),
@@ -41,7 +48,7 @@ def read_profile(root, name):
 
 
 def initialize_profile(args):
-    root = core.project_root(args.root)
+    root = bridge.checked_project_root(args.root)
     name = bridge.relative_name(args.profile)
     if args.from_plan:
         plan = bridge.validate_plan(core.load_json(bridge.plan_file(root, args.from_plan)), args.from_plan)
@@ -54,8 +61,9 @@ def initialize_profile(args):
                  'editable': editable, 'protected': protected,
                  'quality': [json.loads(value) for value in args.check_json], 'specialists': []}
     profile = {'schema_version': 1, 'plan': scope}
+    require(all(bridge.normalized_name(name) != bridge.normalized_name(item) for item in scope['editable']),
+            'project profile cannot be editable')
     bridge.validate_plan({**scope, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
-    require(name not in scope['editable'], 'project profile cannot be editable')
     expected = bridge.file_map(root, scope['files'])
     bridge.directory_modes(root, scope['files'])
     require(all(expected[n] is not None for n in set(scope['files']) - set(scope['editable'])),
@@ -81,6 +89,7 @@ def prepare(root, run_id, request, profile_name):
     bridge.validate_plan(plan, plan_name)
     intake_name = relative + '/intake.json'
     with core.project_lock(root):
+        bridge.private_run_directory(root, relative)
         intake_path = root / intake_name
         if intake_path.exists():
             intake = core.load_json(core.safe_project_file(root, intake_name))
@@ -167,7 +176,7 @@ def blocker(reason, status=None):
 
 
 def execute(root, request, *, run_id, profile_name='proofloop-project.json', host=None):
-    root = core.project_root(str(root))
+    root = bridge.checked_project_root(root)
     loop = None
     metadata = {}
     try:
@@ -213,7 +222,7 @@ def command(args):
     run_id = args.run_id or ('fix-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6])
     root = None
     try:
-        root = core.project_root(args.root)
+        root = bridge.checked_project_root(args.root)
         request = args.request
         if args.request_file:
             request = bridge.file_path(root, args.request_file).read_text(encoding='utf-8')

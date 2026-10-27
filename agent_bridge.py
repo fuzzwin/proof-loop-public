@@ -14,6 +14,7 @@ import signal
 import subprocess
 import sys
 import time
+import unicodedata
 import uuid
 
 import proofloop as core
@@ -30,14 +31,46 @@ class BridgeStop(ValueError):
     pass
 
 
-def relative_name(value):
+def checked_project_root(value):
+    root = Path(value).expanduser().absolute()
+    require(not root.is_symlink(), 'project root cannot be a symlink; use its canonical path')
+    return core.project_root(str(root))
+
+
+def private_run_directory(root, relative):
+    """Create a private run boundary without altering an existing directory."""
+    parts = Path(relative).parts
+    require(len(parts) == 3 and parts[0] == '.proof' and parts[1] in ('tasks', 'agent-runs') and
+            core.RUN_ID_RE.fullmatch(parts[2]), 'invalid private run directory')
+    core.safe_write_path(root, '/'.join(parts[:-1]) + '/.boundary-probe-' + uuid.uuid4().hex)
+    directory = root / relative
+    created = False
+    try:
+        directory.mkdir(mode=0o700)
+        created = True
+    except FileExistsError:
+        pass
+    require(not directory.is_symlink() and directory.is_dir(), 'invalid run evidence directory')
+    if created:
+        os.chmod(directory, 0o700)
+    require(directory.stat().st_mode & 0o077 == 0,
+            'run evidence directory must be private; inspect existing permissions before changing them')
+    return directory
+
+
+def normalized_name(value):
+    return unicodedata.normalize('NFKC', value).casefold()
+
+
+def relative_name(value, *, legacy=False):
     require(isinstance(value, str) and bool(value.strip()), 'relative path required')
-    require(not any(ord(char) < 32 or ord(char) == 127 for char in value),
+    require(legacy or not any(ord(char) < 32 or ord(char) == 127 for char in value),
             'control characters in paths are unsupported')
     p = Path(value)
     require(not p.is_absolute() and p.parts and '..' not in p.parts and str(p) == value,
             'paths must be normalized and project-relative')
-    require(p.parts[0] not in ('.proof', '.git', '.codex'), 'control/runtime path is not an operational file')
+    first = p.parts[0] if legacy else normalized_name(p.parts[0])
+    require(first not in ('.proof', '.git', '.codex'), 'control/runtime path is not an operational file')
     return value
 
 
@@ -145,7 +178,7 @@ def fingerprint(value, modes=None, directories=None):
     return hashlib.sha256(core.canonical_json(data).encode()).hexdigest()
 
 
-def validate_plan(plan, path):
+def validate_plan(plan, path, *, legacy_paths=False):
     require(isinstance(plan, dict) and PLAN_FIELDS <= set(plan) and
             set(plan) <= PLAN_FIELDS | {'requirements', 'test_adapter', 'delivery'}, 'invalid agent plan fields')
     require(isinstance(plan['goal'], str) and 0 < len(plan['goal'].strip()) <= 20000, 'goal required')
@@ -153,12 +186,19 @@ def validate_plan(plan, path):
         value = plan[key]
         require(isinstance(value, list) and value and len(value) <= 200, key + ' must be a bounded nonempty list')
         for name in value:
-            relative_name(name)
+            relative_name(name, legacy=legacy_paths)
         require(len(value) == len(set(value)), key + ' contains duplicate paths')
+        if not legacy_paths:
+            require(len(value) == len({normalized_name(name) for name in value}), key + ' contains ambiguous path aliases')
+    if not legacy_paths:
+        directories = directory_names(plan['files'])
+        require(len(directories) == len({normalized_name(name) for name in directories}),
+                'declared parent directories contain ambiguous aliases')
     require(set(plan['editable']) <= set(plan['files']), 'editable paths must be declared files')
     require(set(plan['protected']) <= set(plan['files']), 'protected paths must be declared files')
     require(not set(plan['editable']) & set(plan['protected']), 'protected files cannot be editable')
-    require(path not in plan['editable'], 'plan cannot be editable')
+    require((path not in plan['editable']) if legacy_paths else
+            all(normalized_name(path) != normalized_name(name) for name in plan['editable']), 'plan cannot be editable')
     for key, low, high in [('max_repairs', 0, 2), ('max_agent_calls', 1, 12),
                            ('agent_timeout_seconds', 1, 600), ('check_timeout_seconds', 1, 300),
                            ('max_run_seconds', 1, 1800)]:
@@ -270,7 +310,10 @@ class ProcessRunner:
                        GIT_CEILING_DIRECTORIES=str(Path(cwd).parent))
         stdout, stderr = directory / 'stdout.log', directory / 'stderr.log'
         start = time.monotonic()
-        with stdout.open('xb') as out, stderr.open('xb') as err:
+        with contextlib.ExitStack() as handles:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0)
+            out = handles.enter_context(os.fdopen(os.open(stdout, flags, 0o600), 'wb'))
+            err = handles.enter_context(os.fdopen(os.open(stderr, flags, 0o600), 'wb'))
             options = {'umask': umask} if umask is not None else {}
             proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE,
                                     stdout=out, stderr=err, start_new_session=(os.name == 'posix'), **options)
@@ -430,7 +473,7 @@ def validate_test_report(report, adapter, run=None, *, check_runtime=True):
 
 class AgentBridge:
     def __init__(self, root, run_id, plan_path, host=None, runner=None):
-        self.root = core.project_root(str(root))
+        self.root = checked_project_root(root)
         require(isinstance(run_id, str) and core.RUN_ID_RE.fullmatch(run_id), 'invalid bridge run ID')
         self.run_id = run_id
         self.plan_path = plan_path
@@ -457,6 +500,7 @@ class AgentBridge:
 
     def load(self):
         # Caller holds project_lock for the entire advance; other hosts cannot overlap.
+        private_run_directory(self.root, self.relative)
         require(digest(plan_file(self.root, self.plan_path)) == self.plan_sha256,
                 'plan changed since parsing; reconstruct bridge before execution')
         if self.state_path.exists():
@@ -702,7 +746,7 @@ class AgentBridge:
             backup = directory / 'before' / c['path']
             if p.exists():
                 backup.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(p, backup)
+                core.atomic_write(backup, p.read_bytes(), exclusive=True)
             mode = p.stat().st_mode & 0o777 if p.exists() else 0o600
             core.atomic_write(p, c['content'].encode(), expected_sha256=original[c['path']],
                               exclusive=original[c['path']] is None, mode=mode)
@@ -799,7 +843,7 @@ class AgentBridge:
             if before[name] is not None:
                 target = directory / 'before' / name
                 target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(file_path(self.root, name), target)
+                core.atomic_write(target, file_path(self.root, name).read_bytes(), exclusive=True)
                 require(digest(target) == before[name], 'source changed during promotion preparation')
         journal = directory / 'promotion.json'
         core.write_json(journal, {'before': before, 'after': after, 'before_modes': before_modes,
@@ -812,6 +856,8 @@ class AgentBridge:
     def finish_promotion(self):
         self.guard()
         self.fresh(source=False)
+        require(directory_modes(self.root, self.plan['files']) == self.state['directory_modes'],
+                'declared source directory permissions changed before promotion')
         ref = self.state['promotion']
         journal = core.safe_project_file(self.root, ref['path'])
         require(digest(journal) == ref['sha256'], 'promotion journal changed')
@@ -847,6 +893,8 @@ class AgentBridge:
                               exclusive=data['before'][name] is None, mode=data['after_modes'][name])
         require(file_map(self.root, self.plan['files']) == data['after'], 'promotion readback mismatch')
         require(file_modes(self.root, self.plan['files']) == data['after_modes'], 'promotion permission readback mismatch')
+        require(directory_modes(self.root, self.plan['files']) == self.state['directory_modes'],
+                'declared source directory permissions changed during promotion')
         self.state['source_expected'] = data['after'].copy()
         self.state['source_modes'] = data['after_modes'].copy()
         return {'before': data['before'], 'after': data['after'], 'promoted': data['changes']}
@@ -898,9 +946,9 @@ class AgentBridge:
                 self.transition(run, 'result', artifact=str(path), sha256=digest(path),
                                 evidence_ref=str(journal), outcome_ref='reconciled-promotion')
             self.state['records'].append({'path': str(path.relative_to(self.root)), 'sha256': digest(path), 'coordinator_run': run})
+            self.fresh()  # Do not persist completion if the promoted source or evidence changed.
             self.state.update(active=None, status='completed_advisory', reason=None)
             self.save()
-            self.fresh()
             return self.status()
 
     def repair(self, directory, launched):
@@ -1056,7 +1104,7 @@ def command(args):
 
 
 def cancel_command(args):
-    root = core.project_root(args.root)
+    root = checked_project_root(args.root)
     require(core.RUN_ID_RE.fullmatch(args.run_id) is not None, 'invalid bridge run ID')
     relative = f'.proof/agent-runs/{args.run_id}'
     core.safe_project_file(root, relative + '/state.json')
@@ -1069,7 +1117,7 @@ def cancel_command(args):
 
 def preflight(root, plan_path):
     """Read-only preparation: no project state, quality execution, or model calls."""
-    root = core.project_root(str(root))
+    root = checked_project_root(root)
     plan = validate_plan(core.load_json(file_path(root, plan_path)), plan_path)
     expected = file_map(root, plan['files'])
     directory_modes(root, plan['files'])
@@ -1380,8 +1428,6 @@ def read_status(root, run_id, plan_path):
         require(isinstance(run_id, str) and core.RUN_ID_RE.fullmatch(run_id), 'invalid bridge run ID')
         plan_parts = _status_parts(plan_path)
         managed = plan_parts == ('.proof', 'tasks', run_id, 'plan.json')
-        if not managed:
-            relative_name(plan_path)
         root_fd = _status_root_fd(root)
         relative = f'.proof/agent-runs/{run_id}'
         state_name, cancel_name = relative + '/state.json', relative + '/cancel.json'
@@ -1397,6 +1443,10 @@ def read_status(root, run_id, plan_path):
                 'unsupported state schema')
         isolated = state['schema_version'] >= 2
         mode_bound = state['schema_version'] == 3
+        if mode_bound and _status_directory_mode(root_fd, relative) & 0o077:
+            issue('stale', 'run evidence directory is not private')
+        if not managed:
+            relative_name(plan_path, legacy=not mode_bound)
         report['state_schema_version'] = state['schema_version']
         require(state.get('run_id') == run_id, 'state run identity mismatch')
         require(isinstance(state.get('status'), str) and state['status'] in
@@ -1426,7 +1476,7 @@ def read_status(root, run_id, plan_path):
         report['deadline'] = deadline
         report['time_remaining_seconds'] = max(0, deadline - time.time())
         raw_plan = _status_bytes(root_fd, plan_path)
-        plan = validate_plan(_status_json(raw_plan), plan_path)
+        plan = validate_plan(_status_json(raw_plan), plan_path, legacy_paths=not mode_bound)
         for name in plan['files']:
             _status_parts(name)
         if hashlib.sha256(raw_plan).hexdigest() != state['plan_sha256']:
@@ -1480,6 +1530,8 @@ def read_status(root, run_id, plan_path):
                 check_hash(name, expected)
         if managed:
             require(isolated, 'managed plans require isolated run state')
+            if mode_bound and _status_directory_mode(root_fd, f'.proof/tasks/{run_id}') & 0o077:
+                issue('stale', 'task evidence directory is not private')
             intake_name = f'.proof/tasks/{run_id}/intake.json'
             raw_intake = _status_bytes(root_fd, intake_name)
             snapshots.append((intake_name, raw_intake))

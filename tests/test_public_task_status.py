@@ -127,6 +127,54 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual('blocked', json.loads(result.stdout)['outcome'])
         self.assertNotIn('Traceback', result.stdout + result.stderr)
 
+    def test_symlink_project_root_is_rejected_before_creating_run(self):
+        link = self.root.parent / (self.root.name + '-link')
+        link.symlink_to(self.root, target_is_directory=True)
+        self.addCleanup(link.unlink)
+        result = subprocess.run([sys.executable, '-B', str(Path(tasks.__file__).with_name('proofloop')),
+                                 'fix', '--root', str(link), '--request', 'Fix VALUE.', '--json'],
+                                capture_output=True, text=True)
+        self.assertEqual(2, result.returncode)
+        self.assertIn('project root cannot be a symlink', json.loads(result.stdout)['blocker']['reason'])
+        self.assertFalse((self.root / '.proof').exists())
+
+    def test_run_evidence_is_private_with_world_readable_project(self):
+        self.root.chmod(0o755)
+        (self.root / 'app.py').chmod(0o600)
+        result = self.fix()
+        self.assertEqual('verified_diff', result['outcome'])
+        for path in (self.root / '.proof/tasks/public', self.root / '.proof/agent-runs/public'):
+            self.assertEqual(0, path.stat().st_mode & 0o077)
+        logs = list((self.root / '.proof/agent-runs/public').rglob('stdout.log'))
+        backups = list((self.root / '.proof/agent-runs/public').rglob('before/app.py'))
+        self.assertTrue(logs and backups)
+        for path in logs + backups:
+            self.assertEqual(0, path.stat().st_mode & 0o077, path)
+
+    def test_insecure_existing_run_directory_is_preserved_and_blocks(self):
+        directory = self.root / '.proof/tasks/public'
+        directory.mkdir(parents=True, mode=0o755)
+        directory.chmod(0o755)
+        (directory / 'existing.txt').write_text('user data\n')
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('run evidence directory must be private', result['blocker']['reason'])
+        self.assertEqual(0o755, directory.stat().st_mode & 0o777)
+        self.assertEqual('user data\n', (directory / 'existing.txt').read_text())
+        self.assertEqual([], self.host.calls)
+
+    def test_weakened_run_privacy_makes_status_stale_and_replay_block(self):
+        self.fix()
+        for path in (self.root / '.proof/tasks/public', self.root / '.proof/agent-runs/public'):
+            with self.subTest(path=str(path)):
+                path.chmod(0o755)
+                report = self.inspect()
+                self.assertEqual('stale', report['freshness']['state'], report)
+                replay = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+                self.assertEqual('blocked', replay['outcome'])
+                self.assertIn('run evidence directory must be private', replay['blocker']['reason'])
+                path.chmod(0o700)
+
     def test_runtime_failure_with_active_work_requires_reconciliation(self):
         item = tasks.blocker('Codex process failed; inspect stderr', {'active_stage': {'stage': 'builder-1'}})
         self.assertEqual('uncertain_stage', item['code'])
@@ -158,6 +206,19 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual(['builder', 'verifier'], [role for role, _ in self.host.calls])
         self.assertIn('SyntaxError', result['run']['feedback'][0]['test_adapter']['collection_errors'][0]['error'])
         self.assertEqual('current', self.inspect()['freshness']['state'])
+
+    def test_import_time_system_exit_returns_to_builder(self):
+        (self.root / 'app.py').write_text('raise SystemExit(7)\n')
+        (self.root / 'test_app.py').write_text('import unittest\nfrom app import VALUE\n'
+            'class Check(unittest.TestCase):\n    def test_value(self):\n        self.assertEqual(2, VALUE)\n')
+        self.scope['files'].append('test_app.py')
+        self.scope['protected'].append('test_app.py')
+        self.scope['test_adapter'] = {'type': 'python-unittest', 'tests': ['test_app.py'],
+                                      'expected_ids': ['test_app.Check.test_value']}
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = self.fix()
+        self.assertEqual(['builder', 'verifier'], [role for role, _ in self.host.calls])
+        self.assertIn('SystemExit: 7', result['run']['feedback'][0]['test_adapter']['collection_errors'][0]['error'])
 
     def test_missing_noneditable_context_blocks_before_dispatch(self):
         self.scope['files'].append('missing-context.md')

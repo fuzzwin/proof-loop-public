@@ -15,6 +15,21 @@ Use your system's Python command if it differs, such as `python` or `py -3`. The
 
 Next, follow [the first-run guide](HOW-TO-USE.md) to declare your own task, evidence files, acceptance criteria, and permitted writes. Keep project data outside this toolkit. Preserve existing project instructions when adding templates.
 
+## Describe a fix once
+
+With the optional Codex workflow and a configured project profile:
+
+```sh
+python3 proofloop fix --root /path/to/project \
+  --request "Fix the empty-search crash while preserving existing results."
+```
+
+It runs bounded repairs and fresh verification, then returns a locally verified patch or
+a precise blocker. Source files remain unchanged until you apply the patch. Follow the
+[one-request guide](ONE-REQUEST-WORKFLOW.md) for a disposable example and one-time setup.
+Native calls require an installed, signed-in Codex CLI on a compatible POSIX host and consume
+account usage. The core and synthetic smoke above work without Codex.
+
 ## Choose a layer
 
 | Layer | What happens | Requirements and limits |
@@ -22,7 +37,7 @@ Next, follow [the first-run guide](HOW-TO-USE.md) to declare your own task, evid
 | Portable instructions | An operator or assistant follows task planning, evidence, and review guidance | Advisory text; execution requires your tools and permission |
 | Core CLI and validator | Python records cards, hashes, checkpoints and receipts; recomputes JSON source/view drift | Only the built-in drift adapter supports recomputed Verified checks; external pins and exact-card approval are required for acceptance |
 | Deterministic orchestration | Coordinator runs bounded synthetic inspect/repair/recheck stages | Executed code; see [orchestration](ORCHESTRATION.md); completion remains advisory |
-| Optional experimental agent bridge | Local Codex specialist, builder, and fresh verifier sessions run within explicit budgets | Compatible POSIX host, installed signed-in Codex, and explicit invocation; may consume account usage |
+| Optional one-request workflow and agent bridge | A project profile supplies scope and checks; separate Codex workers repair and verify an isolated candidate | Compatible POSIX host, installed signed-in Codex, and explicit invocation; may consume account usage; local verification remains separate from portable acceptance |
 
 A receipt does not authenticate the reviewer or establish the truth of arbitrary evidence. Same-user pins demonstrate consistency only. The toolkit provides no OS confinement, autonomous truth verification, global installation, or production certification.
 
@@ -30,7 +45,7 @@ A receipt does not authenticate the reviewer or establish the truth of arbitrary
 
 - [First-run guide](HOW-TO-USE.md) and [detailed receipt workflow](HOW-TO.md)
 - [When to use it](WHEN-TO-USE.md) and [synthetic scenarios](examples/learning/CASE-STUDIES.md)
-- [Optional agent bridge](AGENT-BRIDGE.md) and [saved-run status](AGENT-STATUS-GUIDE.md)
+- [One-request workflow](ONE-REQUEST-WORKFLOW.md), [agent bridge](AGENT-BRIDGE.md), and [saved-run status](AGENT-STATUS-GUIDE.md)
 - [Validation limits](VALIDATION-STATUS.md), [release status](RELEASE-STATUS.md), and [MIT license](LICENSE)
 
 ```sh
@@ -39,3 +54,4 @@ python3 -B pilot/acceptance.py
 ```
 
 Tests use synthetic fixtures. Passing them establishes their covered behavior on the tested runtime, not universal compatibility or correctness of your task.
+The development regression suite also uses Git to check that returned patches apply.

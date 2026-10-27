@@ -107,17 +107,17 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertEqual('blocked', self.open().advance()['state'])
         self.assertEqual([], self.host.calls)
 
-    def test_agent_budget_survives_checkpoint_resume(self):
+    def test_insufficient_budget_preserves_calls_and_survives_resume(self):
         self.plan['max_agent_calls'] = 1
         self.save_plan()
         loop = self.open()
-        loop.advance(3)  # quality, empty specialist routing, builder
-        self.assertEqual(1, loop.state['agent_calls'])
+        result = loop.advance()
+        self.assertEqual('blocked', result['state'])
+        self.assertIn('repair and fresh verifier', result['reason'])
+        self.assertEqual(0, loop.state['agent_calls'])
         loop.close()
-        resumed = self.open()
-        with self.assertRaisesRegex(ValueError, 'dispatch budget'):
-            resumed.advance()
-        self.assertEqual(['builder'], [r for r,p in self.host.calls])
+        self.assertEqual(result, self.open().advance())
+        self.assertEqual([], self.host.calls)
 
     def test_completed_replay_rejects_root_and_nested_evidence_drift(self):
         loop = self.open()
@@ -183,7 +183,8 @@ class AgentBridgeTests(unittest.TestCase):
         with patch.object(loop, 'transition', side_effect=interrupted):
             with self.assertRaisesRegex(RuntimeError, 'lost acknowledgement'):
                 loop.advance()
-        self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
+        self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())
+        self.assertEqual('VALUE = 2\n', (loop.candidate_root / 'app.py').read_text())
         loop.close()
         with self.assertRaisesRegex(ValueError, 'unfinished stage'):
             self.open().advance()

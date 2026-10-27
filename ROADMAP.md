@@ -7,6 +7,8 @@ Proof Loop is developed as a generic workflow. Project-specific source code, ada
 - Portable intake, run cards, receipts and built-in source/view drift validation.
 - Deterministic orchestration for bounded synthetic inspect/repair/recheck flows.
 - An opt-in local Codex execution bridge with separate specialist, builder and verifier sessions.
+- One-request code fixes from a reusable project profile, returning a verified diff or blocker.
+- Isolated candidates, final check reruns, exact optional test coverage and promotion recovery.
 - Read-only status inspection for saved agent runs.
 
 ## Open work

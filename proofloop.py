@@ -1064,6 +1064,45 @@ def parser():
         from agent_bridge import cancel_command
         return cancel_command(args)
     agent_cancel.set_defaults(func=cancel_agents)
+    for name, help_text in [('agent-preflight', 'inspect plan/runtime dependencies without dispatch'),
+                            ('agent-status', 'inspect progress, evidence and recovery without writes'),
+                            ('agent-recover', 'finish a journaled verified promotion; never redispatch agents')]:
+        command = sub.add_parser(name, help=help_text)
+        command.add_argument('--root', required=True)
+        command.add_argument('--plan', required=True)
+        if name != 'agent-preflight':
+            command.add_argument('--run-id', required=True)
+        if name == 'agent-recover':
+            command.add_argument('--finish-promotion', action='store_true', required=True)
+        def bridge_command(args, name=name):
+            from agent_bridge import preflight_command, status_command, recover_command
+            return {'agent-preflight': preflight_command, 'agent-status': status_command,
+                    'agent-recover': recover_command}[name](args)
+        command.set_defaults(func=bridge_command)
+    profile_init = sub.add_parser('profile-init', help='configure reusable project scope and checks once')
+    profile_init.add_argument('--root', required=True)
+    profile_init.add_argument('--profile', default='proofloop-project.json')
+    profile_init.add_argument('--from-plan')
+    profile_init.add_argument('--editable', nargs='+')
+    profile_init.add_argument('--protected', nargs='+')
+    profile_init.add_argument('--context', nargs='+')
+    profile_init.add_argument('--check-json', action='append', help='trusted command as a JSON argv array')
+    def initialize_profile(args):
+        from task_workflow import initialize_profile
+        return initialize_profile(args)
+    profile_init.set_defaults(func=initialize_profile)
+    fix = sub.add_parser('fix', help='describe a fix once; return a verified diff or precise blocker')
+    fix.add_argument('--root', required=True)
+    fix.add_argument('--profile', default='proofloop-project.json')
+    fix.add_argument('--run-id', help='reuse the exact request/profile to resume; defaults to a unique ID')
+    request = fix.add_mutually_exclusive_group(required=True)
+    request.add_argument('--request')
+    request.add_argument('--request-file', help='project-relative UTF-8 request file')
+    fix.add_argument('--json', action='store_true', help='emit the structured outcome/evidence report')
+    def fix_task(args):
+        from task_workflow import command
+        return command(args)
+    fix.set_defaults(func=fix_task)
     return p
 
 
@@ -1071,7 +1110,7 @@ def main(argv=None):
     p = parser()
     args = p.parse_args(argv)
     try:
-        if hasattr(args, "run_id") and (not isinstance(args.run_id, str) or not RUN_ID_RE.fullmatch(args.run_id)):
+        if hasattr(args, "run_id") and args.run_id is not None and (not isinstance(args.run_id, str) or not RUN_ID_RE.fullmatch(args.run_id)):
             raise ValueError("run id must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}")
         return args.func(args)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
@@ -1081,4 +1120,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

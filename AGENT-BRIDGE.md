@@ -5,6 +5,9 @@ The bridge owns dispatch, evidence, file application and stopping rules. The
 existing deterministic `orchestrate` demo and portable receipt validator remain
 separate entry points.
 
+For ordinary code fixes, use [the one-request workflow](ONE-REQUEST-WORKFLOW.md):
+configure a project profile once, then pass the task to `fix --request`.
+
 ```mermaid
 flowchart TD
   A[Freeze plan, inputs and protected requirements] --> Q[Run declared quality checks]
@@ -13,10 +16,12 @@ flowchart TD
   V -->|Findings| L
   L -->|Yes| S[Run matching optional specialists]
   S --> B[Builder proposes allowed file content]
-  B --> E[Validate and apply changes]
+  B --> E[Validate and edit isolated candidate]
   E --> Q
   L -->|No| X[Blocked with evidence]
-  V -->|Pass on exact candidate| D[Completed advisory]
+  V -->|Pass on exact candidate| R[Run checks again]
+  R -->|Pass| D[Return diff or promote verified candidate]
+  R -->|Fail| L
 ```
 
 ## Run the small demonstration
@@ -36,8 +41,9 @@ python3 proofloop agent-run --root /tmp/proof-loop-agents-demo \
 ```
 
 This runs a failing addition check, creates a builder to propose the correction,
-applies only the allowed file change, repeats quality checks and starts a
-separate verifier session. The final result remains `completed_advisory` with
+edits the isolated candidate, repeats quality checks and starts a
+separate verifier session. After a pass it reruns checks before promoting the
+verified file change. The final result remains `completed_advisory` with
 `acceptance: not_accepted`. Zero defects found by a model is a scoped judgement,
 not general proof of correctness or portable acceptance.
 
@@ -65,6 +71,13 @@ The JSON plan is explicit authorization for its declared scope:
   is deterministic, not an unrestricted model-generated staffing plan.
 - `max_repairs`: 0–2; `max_agent_calls`: 1–12, counting specialists, builders and
   verifiers. A dispatch consumes budget before launch, including failed attempts.
+- Optional `requirements`: unique IDs and descriptions that the verifier must assess
+  individually with evidence. A failing or `not_checked` requirement prevents a pass.
+- Optional `test_adapter`: `python-unittest`, exact protected Python test files and
+  `expected_ids`. Missing, repeated, skipped or unsuccessful tests prevent a pass.
+  This is local test evidence, not a portable acceptance adapter.
+- Optional `delivery`: `apply` (the default for `agent-run`) or `diff`. `fix` always
+  selects `diff`; the task request cannot grant itself source-write authority.
 - `agent_timeout_seconds`: 1–600; `check_timeout_seconds`: 1–300;
   `max_run_seconds`: 1–1800. The total deadline persists across resume and includes
   time spent paused. Limits stop work; the bridge does not raise them itself.
@@ -91,10 +104,11 @@ Codex's existing store. API-key environment variables are removed from child
 processes. Model selection uses the native default; a model name is not invented
 from a role label. This first adapter has no per-role model selector.
 
-Only the bridge applies proposed changes. It validates the entire proposal,
-checks original file hashes, saves prior contents and applies only explicit
-allowlisted files. After each stage it rechecks source, protected controls and
-all nested prior evidence.
+Only the bridge applies proposed changes. Repairs stay in a separate candidate
+directory until checks, fresh verification and final checks pass. It validates
+the entire proposal, saves prior contents and edits only explicit allowlisted
+files. After each stage it rechecks source, candidate, protected controls and
+all nested prior evidence. A repeated candidate stops as no progress.
 On POSIX hosts, declared permission bits are preserved when files are copied into
 quality/worker snapshots and when existing files are rewritten; newly created
 files use owner-only `0600` permissions. The executable-script regression is
@@ -107,12 +121,15 @@ this implementation is not an OS security boundary.
 ```sh
 python3 proofloop agent-run --root /path/to/project --run-id RUN --plan plan.json --max-steps 1
 python3 proofloop agent-cancel --root /path/to/project --run-id RUN
+python3 proofloop agent-preflight --root /path/to/project --plan plan.json
 ```
 
 Repeat the same `agent-run` to continue a completed checkpoint. `--max-steps`
 counts state-machine steps, including optional-role routing, not model turns.
 A completed replay rechecks evidence and returns without another model call or
 file edit. A different plan or changed declared file rejects continuation.
+Preflight inspects the declared scope, executable availability and static Python
+dependency hints without running project code or authenticating Codex.
 
 The shared coordinator database records actual process references and artifacts,
 with the project writer resource held for each stage. Stages run sequentially;
@@ -142,8 +159,12 @@ A crash, malformed response, missing final event, runtime failure or uncertain
 write leaves its active stage recorded and is never automatically redispatched.
 Inspect the recorded process, coordinator state, backups and actual files. Do
 not delete a lock or clear active state merely because time passed. A new run
-requires deliberate reconciliation of the original work. Multi-file edits are
-not a rollback transaction; partial writes remain visible and require inspection.
+requires deliberate reconciliation of the original work. Multi-file final
+promotion is journaled but is not a rollback transaction; interrupted source
+writes remain visible and require inspection. After inspecting the recorded
+processes and evidence, `agent-recover --root PROJECT --run-id RUN --plan PLAN
+--finish-promotion` can finish that exact verified promotion without new model
+calls. It rejects conflicting source edits and changed journals or backups.
 
 Evidence lives under `.proof/agent-runs/RUN/`: frozen state, snapshots, command
 arguments, process references, raw events, final responses, prior file contents
@@ -176,7 +197,7 @@ python3 proofloop agent-status --root /path/to/project --run-id RUN --plan plan.
 
 The public wrapper provides this read-only command. `PLAN` must be a normalized
 project-relative path, without `./`, repeated separators or traversal. It reads
-existing schema-version-1 state and evidence without constructing an execution
+existing schema-version-1 or schema-version-2 state and evidence without constructing an execution
 host, opening the coordinator database, taking a lock, starting a process or
 writing files or bytecode. Codex and credentials are unnecessary.
 
@@ -186,6 +207,11 @@ the existing deadline and clamped remaining time. Unknown values are `null`.
 Quality and verifier summaries come from the latest completed records, never
 from the state's cached quality field. A missing or malformed latest summary
 cannot imply an earlier successful result is current.
+New runs keep source and candidate hashes separately. Their completion requires
+the fresh verifier, final recheck, and delivery or promotion sequence; the diff
+must match its frozen delivery record. Managed task plans, intake evidence and
+current profile hashes are checked for one-request runs. Legacy state remains
+readable but must use its original host version to resume execution.
 
 `freshness.state` is `current`, `stale`, `unreadable` or `indeterminate`, with
 explanatory `issues` for every noncurrent result. Plan, declared source files

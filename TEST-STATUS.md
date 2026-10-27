@@ -19,3 +19,28 @@ python3 -B pilot/acceptance.py
 These are synthetic checks. They do not qualify real applications, independent pin custody, live model performance, Linux, Windows, Python 3.10, or automatic host activation. A successful package scan is bounded by its patterns and review coverage. Tie any later results to the exact exported source commit.
 
 On 2026-10-27, a connector download of public candidate commit `5987b5704d8950167175690e622e31b270e766b5` was checked on macOS 14.5 arm64 with CPython 3.14.3: all 149 regression tests and 20 protected acceptance tests passed, and the clean-start smoke passed. The smoke also passed from a fresh Git clone of that commit. Subsequent publication-status edits change documentation only.
+
+## One-request workflow verification, 2026-10-28
+
+The one-request additions were checked on macOS 14.8.9 arm64 with CPython 3.14.3
+and Codex CLI 0.154.0 using existing ChatGPT authentication:
+
+- All 197 regression tests passed. Coverage includes isolated repair and promotion recovery,
+  exact test/requirement coverage, applicable patches, malformed setup/intake, source drift,
+  completed replay, and read-only status for both native state formats.
+- All 20 protected legacy status checks passed; their acceptance fixtures were preserved.
+- The disposable clean-start smoke passed, and local Markdown links resolved.
+- Two real native trials each used one builder and one fresh verifier after one repair round.
+  A single-file addition fix and the documented two-file order-total demo returned verified
+  diffs while retaining the original source. Both status reports were current. Replaying the
+  completed requests changed no files and made no new calls.
+- The order patch applied in a separate disposable project, produced the exact candidate
+  file hashes, and passed all three protected order tests. Its optional test adapter also
+  recorded those exact three IDs during the workflow and final recheck.
+- The publication scan found no personal machine paths, private repository URLs, credential
+  values, saved native session IDs, or runtime payloads in the proposed source files.
+
+The native trials verify the demonstration candidates, rather than independently auditing
+the new toolkit source. Independent source review remains a release prerequisite. Raw native
+events, account data and historical project payloads are excluded from this distribution.
+These checks establish no additional platform support or portable production acceptance.

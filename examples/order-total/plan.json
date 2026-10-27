@@ -1,0 +1,22 @@
+{
+  "goal": "Repair the synthetic order total across pricing.py and order.py, meeting every protected requirement and test. Preserve the public functions.",
+  "files": ["pricing.py", "order.py", "test_orders.py", "requirements.txt"],
+  "editable": ["pricing.py", "order.py"],
+  "protected": ["test_orders.py", "requirements.txt"],
+  "quality": [["{python}", "-B", "-m", "unittest", "test_orders", "-v"]],
+  "test_adapter": {
+    "type": "python-unittest", "tests": ["test_orders.py"],
+    "expected_ids": ["test_orders.OrderTests.test_discount_and_rounding", "test_orders.OrderTests.test_multiple_lines_and_quantities", "test_orders.OrderTests.test_empty_order"]
+  },
+  "requirements": [
+    {"id": "R1", "description": "Apply Decimal discount and round each unit to cents with ROUND_HALF_UP."},
+    {"id": "R2", "description": "Multiply by quantity, sum multiple lines, and return Decimal zero for an empty order."},
+    {"id": "R3", "description": "Keep public function signatures, protected tests and requirements unchanged."}
+  ],
+  "specialists": [],
+  "max_repairs": 2,
+  "max_agent_calls": 4,
+  "agent_timeout_seconds": 180,
+  "check_timeout_seconds": 20,
+  "max_run_seconds": 600
+}

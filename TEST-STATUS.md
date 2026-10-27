@@ -40,7 +40,29 @@ and Codex CLI 0.154.0 using existing ChatGPT authentication:
 - The publication scan found no personal machine paths, private repository URLs, credential
   values, saved native session IDs, or runtime payloads in the proposed source files.
 
-The native trials verify the demonstration candidates, rather than independently auditing
-the new toolkit source. Independent source review remains a release prerequisite. Raw native
-events, account data and historical project payloads are excluded from this distribution.
-These checks establish no additional platform support or portable production acceptance.
+The native trials verify the demonstration candidates. Raw native events, account data and
+historical project payloads are excluded from this distribution. These checks establish no
+additional platform support or portable production acceptance.
+
+## Independent review and repairs, 2026-10-28
+
+Two independent agent sessions reviewed the original one-request changes and subsequent
+frozen repair revisions, including source commit `623267f45bdae97c3f3485baa88087285c8dd6a4`.
+They found and prompted repairs to test collection failures, patch and permission fidelity,
+private evidence boundaries, missing or changed coordinator history, and replay and recovery.
+Regression tests cover those reported cases. This was scoped source review, not an
+independent human audit or an exhaustive security review.
+
+On that frozen source, 246 regression tests and all 20 protected status checks passed
+on macOS 14.8.9 arm64 with CPython 3.14.3; the clean-start smoke also passed.
+
+Three additional real native trials on earlier repair revisions exercised import failure,
+SystemExit during collection, and inherited macOS ACLs. Each returned a diff after one repair
+and fresh verifier. On the final reviewed source, replay of the ACL trial returned the same
+diff without another agent dispatch. Linux ACL handling remains untested. A target with mixed
+file modes that Git cannot reproduce with one umask receives a blocker. The older explicit
+apply path cannot atomically exclude external editors; pause them during promotion and
+recovery. Source timestamps, ownership, ACLs and undeclared state are outside candidate
+verification. Evidence and privacy are checked before completion is saved; unrelated
+changes after that point are a separate observation, not an atomic filesystem guarantee.
+These checks do not confer portable receipt acceptance.

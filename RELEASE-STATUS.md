@@ -13,8 +13,9 @@ Historical version 0.2.0 is withdrawn for acceptance because failed runner evide
 
 See [test status](TEST-STATUS.md) for the package checks and tested runtime. Project records report an independent review of the source and an earlier documentation snapshot. The publication-status documentation was subsequently updated; raw reviewer logs are not included in this distribution.
 
-That historical source review covers the earlier distribution. The new one-request additions
-have implementation review, regression checks and native demo verification; independent
-source review of those additions remains pending before release.
+Two independent agent review sessions examined the one-request additions and subsequent
+repairs, including frozen source commit `623267f45bdae97c3f3485baa88087285c8dd6a4`.
+They are scoped source reviews, not an independent human audit or exhaustive security review.
+See the test status for the checks, platform and remaining limits.
 
 The experimental native agent bridge is opt-in. Advisory completion does not establish production acceptance, reviewer identity, OS confinement, universal compatibility, or automatic host activation. Source, tests, schemas and synthetic fixtures are included; historical project payloads and runtime evidence are excluded.

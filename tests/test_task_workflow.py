@@ -3,6 +3,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -11,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from urllib.parse import unquote
 
 import agent_bridge as bridge
 import task_workflow as tasks
@@ -122,6 +124,50 @@ class TaskWorkflowTests(unittest.TestCase):
         result = self.run_fix()
         self.assertEqual('blocked', result['outcome'])
         self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(2, len(self.host.calls))
+
+    def test_missing_coordinator_operations_block_without_dispatch(self):
+        self.run_fix()
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        db = sqlite3.connect(coordinator)
+        db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
+        db.commit()
+        db.close()
+        before = bridge.tree_map(self.root)
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(2, len(self.host.calls))
+
+    def test_completed_replay_reads_private_snapshot_without_opening_live_coordinator(self):
+        original = self.run_fix()
+        before = bridge.tree_map(self.root)
+        original_connect = sqlite3.connect
+        observed = []
+        def inspect_snapshot(database, *args, **kwargs):
+            self.assertIsInstance(database, str)
+            self.assertTrue(database.startswith('file:'))
+            path = Path(unquote(database[5:].split('?', 1)[0]))
+            self.assertTrue(path.is_relative_to(self.root / '.proof/agent-runs/fix'))
+            self.assertEqual(0, path.stat().st_mode & 0o077)
+            fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                self.assertEqual(0, os.fstat(fd).st_mode & 0o077)
+                self.assertFalse(bridge._directory_has_acl(fd))
+            finally:
+                os.close(fd)
+            observed.append(path)
+            return original_connect(database, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            if sys.platform == 'darwin':
+                subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute,file_inherit,directory_inherit', tmp], check=True)
+            with mock.patch.dict(os.environ, {'TMPDIR': tmp}):
+                with mock.patch.object(bridge.sqlite3, 'connect', side_effect=inspect_snapshot):
+                    replay = self.run_fix()
+        self.assertEqual(original, replay, replay)
+        self.assertTrue(observed)
         self.assertEqual(before, bridge.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 

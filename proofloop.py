@@ -1103,6 +1103,31 @@ def parser():
         from task_workflow import command
         return command(args)
     fix.set_defaults(func=fix_task)
+    for name, only in [('harness-run', False), ('harness-check', True)]:
+        task = sub.add_parser(name, help='run a typed task contract' if not only else 'run checks without dispatching agents')
+        task.add_argument('--root', required=True); task.add_argument('--run-id', required=True)
+        task.add_argument('--task', required=True)
+        task.add_argument('--max-steps', type=int, default=100)
+        def run_harness(args):
+            from harness import command
+            return command(args)
+        task.set_defaults(func=run_harness, checks_only=only)
+    observer = sub.add_parser('harness-status', help='inspect typed task evidence without execution')
+    observer.add_argument('--root', required=True); observer.add_argument('--run-id', required=True)
+    observer.add_argument('--task', required=True)
+    def inspect_harness(args):
+        from harness import status_command
+        return status_command(args)
+    observer.set_defaults(func=inspect_harness)
+    stop = sub.add_parser('harness-cancel', help='request cancellation of a typed task run')
+    stop.add_argument('--root', required=True); stop.add_argument('--run-id', required=True)
+    stop.set_defaults(func=cancel_agents)
+    adapters = sub.add_parser('harness-adapters', help='list version-1 built-in check adapters')
+    def show_adapters(args):
+        from harness_checks import ADAPTERS
+        print(canonical_json({'schema_version': 1, 'checks': ADAPTERS, 'hosts': ['codex', 'command']}), end='')
+        return 0
+    adapters.set_defaults(func=show_adapters)
     return p
 
 

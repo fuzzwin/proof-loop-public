@@ -2,6 +2,11 @@
 
 A fresh, project-local Python toolkit for scoped tasks, reproducible evidence, bounded repairs, and explicit validation. Bring your own task and files. This distribution contains source, tests, schemas, instruction templates, and synthetic examples; it includes no personal projects, attachments, saved agent sessions, or preaccepted receipts.
 
+The [general task harness](HARNESS.md) adds typed software, data, document and
+external-tool checks to the bounded agent loop. Task contracts declare separate
+verification and validation criteria. Use the native Codex host or connect your
+own local agent adapter through the documented JSON protocol.
+
 ## Start here
 
 You need a local Python runtime (source targets Python 3.10+), a terminal, and permission to read and write your chosen project. No package installation, account, model, or network connection is required for the core or synthetic checks. Extract the source bundle, open a terminal in its folder, then run:
@@ -9,6 +14,7 @@ You need a local Python runtime (source targets Python 3.10+), a terminal, and p
 ```sh
 python3 proofloop --version
 python3 tools/clean_start_smoke.py
+python3 -B tools/harness_smoke.py
 ```
 
 Use your system's Python command if it differs, such as `python` or `py -3`. The smoke check creates a temporary synthetic project, checks success and failure, then removes its temporary data. It does not modify your project or install anything. Check [platform support](HOST-COMPATIBILITY.md) before using an optional integration.
@@ -41,6 +47,7 @@ equivalence of timestamps, ownership, ACLs, inode identity, external services or
 | Core CLI and validator | Python records cards, hashes, checkpoints and receipts; recomputes JSON source/view drift | Only the built-in drift adapter supports recomputed Verified checks; external pins and exact-card approval are required for acceptance |
 | Deterministic orchestration | Coordinator runs bounded synthetic inspect/repair/recheck stages | Executed code; see [orchestration](ORCHESTRATION.md); completion remains advisory |
 | Optional one-request workflow and agent bridge | A project profile supplies scope and checks; separate Codex workers repair and verify an isolated candidate | Compatible POSIX host, installed signed-in Codex, and explicit invocation; may consume account usage; local verification remains separate from portable acceptance |
+| General task harness | Typed checks, protected criteria, conditional specialists, builder and fresh verifier | [Task contracts and host adapters](HARNESS.md); all criteria must pass within explicit limits |
 
 A receipt does not authenticate the reviewer or establish the truth of arbitrary evidence. Same-user pins demonstrate consistency only. The toolkit provides no OS confinement, autonomous truth verification, global installation, or production certification.
 

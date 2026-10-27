@@ -1,5 +1,22 @@
 # Test status
 
+## General harness candidate — 2026-10-28
+
+The general harness adds tests that exercise actual local subprocesses with explicitly synthetic
+agent fixtures, conditional specialist/builder/verifier flows, bounded repairs
+and calls, false-pass controls, skips/empty suites, malformed protocols, partial
+coverage, changed evidence, timeouts, report limits and read-only status. Review
+repairs add independent-snapshot, candidate-freshness, legacy-status, and frozen
+test-case coverage regressions. See the change's review and verification record for results
+tied to its exact commit and tested runtime.
+
+Run `python3 -B tools/harness_smoke.py` for disposable software, JSON-data and
+document checks without a model. See [the harness guide](HARNESS.md) for contracts
+and extension protocols. Synthetic checks do not qualify live-model/provider behavior or additional
+platforms. The portable receipt acceptance boundary is unchanged.
+
+## Published baseline checks
+
 Fresh local verification on 2026-10-26: macOS (Darwin 23.5.0), arm64, CPython 3.14.3. Implementation, existing tests and schemas match source baseline `85e4f51963d346ec0703123e5545a2e81c4f7e26`. The distribution adds first-run documentation and a disposable smoke script; it carries no historical receipts.
 
 - Regression suite: 149 tests passed, no skips reported (29.889 seconds).

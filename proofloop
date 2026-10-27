@@ -6,19 +6,21 @@ sys.dont_write_bytecode = True
 
 from proofloop import main
 
-if len(sys.argv) > 1 and sys.argv[1] == 'agent-status':
+if len(sys.argv) > 1 and sys.argv[1] in ('agent-status', 'harness-status'):
     import argparse
     from agent_bridge import status_command, status_report
     import json
+    if sys.argv[1] == 'harness-status':
+        from harness import status_command
 
     class StatusParser(argparse.ArgumentParser):
         def error(self, message):
             raise ValueError(message)
 
-    parser = StatusParser(prog='proofloop agent-status', description='Inspect persisted agent evidence without executing or writing anything')
+    parser = StatusParser(prog='proofloop ' + sys.argv[1], description='Inspect persisted agent evidence without executing or writing anything')
     parser.add_argument('--root', required=True)
     parser.add_argument('--run-id', required=True)
-    parser.add_argument('--plan', required=True)
+    parser.add_argument('--task' if sys.argv[1] == 'harness-status' else '--plan', required=True)
     try:
         args = parser.parse_args(sys.argv[2:])
     except ValueError as exc:

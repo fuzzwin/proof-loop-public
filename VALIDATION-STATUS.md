@@ -7,7 +7,12 @@ Proof Loop separates deterministic checks, reported external results, and human 
 | Portable CLI | Recomputes the built-in JSON source/view drift check | External reviewer-controlled acceptance pin and exact Run Card approval |
 | Agent bridge | Opt-in local Codex sessions with bounded calls, repairs, and time | Host-specific acceptance and independent review of each candidate |
 | Agent status | Read-only inspection of recorded run data and evidence freshness | Freshness can become indeterminate while a stage is active or state changes |
+| General task harness | Runs declared typed checks with separate verification and validation summaries and a fresh agent verifier | Criteria must be complete for the intended task; external tools and hosts remain trusted and attributed |
 | Orchestration | Deterministic synthetic inspect/repair/recheck workflow | It does not dispatch language models or create OS isolation |
 | External tools | Their outputs can be retained as reported evidence | A dedicated runner and independent validation before Verified status |
 
 Synthetic pins establish consistency only. Matching file hashes are consistency checks, not authenticated proof. Advisory completion is not production acceptance.
+
+General harness checks do not change the portable receipt validator's supported
+Verified adapter. See [the harness guide](HARNESS.md) for the check/host extension
+protocols and the distinction between passed criteria and production acceptance.

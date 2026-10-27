@@ -264,14 +264,15 @@ class CodexHost:
 
 
 class AgentBridge:
-    def __init__(self, root, run_id, plan_path, host=None, runner=None):
+    def __init__(self, root, run_id, plan_path, host=None, runner=None,
+                 plan_validator=None, plan_loader=None):
         self.root = core.project_root(str(root))
         require(isinstance(run_id, str) and core.RUN_ID_RE.fullmatch(run_id), 'invalid bridge run ID')
         self.run_id = run_id
         self.plan_path = relative_name(plan_path)
         plan_bytes = file_path(self.root, plan_path).read_bytes()
         self.plan_sha256 = hashlib.sha256(plan_bytes).hexdigest()
-        self.plan = validate_plan(json.loads(plan_bytes), plan_path)
+        self.plan = (plan_validator or validate_plan)((plan_loader or json.loads)(plan_bytes), plan_path)
         self.runner = runner or ProcessRunner()
         self.host = host  # Lazily resolve Codex only when an agent is actually needed.
         self.relative = f'.proof/agent-runs/{run_id}'
@@ -732,7 +733,8 @@ def _status_summary(stage, result):
     return None, None
 
 
-def read_status(root, run_id, plan_path):
+def read_status(root, run_id, plan_path, *, plan_validator=None, summary_reader=None,
+                include_candidate=False):
     """Observe schema-1 files once. Matching hashes are not authentication."""
     import math
     import re
@@ -805,7 +807,7 @@ def read_status(root, run_id, plan_path):
         report['deadline'] = deadline
         report['time_remaining_seconds'] = max(0, deadline - time.time())
         raw_plan = _status_bytes(root_fd, plan_path)
-        plan = validate_plan(_status_json(raw_plan), plan_path)
+        plan = (plan_validator or validate_plan)(_status_json(raw_plan), plan_path)
         for name in plan['files']:
             _status_parts(name)
         if hashlib.sha256(raw_plan).hexdigest() != state['plan_sha256']:
@@ -819,6 +821,8 @@ def read_status(root, run_id, plan_path):
         require(len(state['threads']) <= state['agent_calls'], 'thread count exceeds agent calls')
         _status_source_map(state.get('expected'), plan)
         _status_source_map(state.get('initial'), plan)
+        if include_candidate:
+            report['candidate_sha256'] = fingerprint(state['expected'])
         for name in plan['protected']:
             require(state['expected'][name] == state['initial'][name], 'protected source map changed: ' + name)
         for name, expected in state['expected'].items():
@@ -859,7 +863,7 @@ def read_status(root, run_id, plan_path):
                     require(len(nested) > len(stage_parts) and nested[:len(stage_parts)] == stage_parts and
                             nested != parts, 'nested evidence must stay within its stage')
                     require(_status_hash(expected), 'invalid nested evidence hash')
-                summary_key, summary = _status_summary(stage, data.get('result'))
+                summary_key, summary = (summary_reader or _status_summary)(stage, data.get('result'))
                 if summary_key:
                     report[summary_key] = summary
                 for name, expected in evidence.items():

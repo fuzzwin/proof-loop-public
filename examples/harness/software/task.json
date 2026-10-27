@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "goal": "Implement add(left, right) as addition. Preserve the tests and their agreed positive, negative and zero cases.",
+  "files": [
+    "app.py",
+    "tests/test_add.py",
+    "acceptance/test_use_case.py",
+    "requirements.md"
+  ],
+  "editable": [
+    "app.py"
+  ],
+  "protected": [
+    "tests/test_add.py",
+    "acceptance/test_use_case.py",
+    "requirements.md"
+  ],
+  "requirements": [
+    "requirements.md"
+  ],
+  "checks": [
+    {
+      "id": "unit",
+      "purpose": "verification",
+      "criterion": "Implementation passes the protected unit tests without skips.",
+      "adapter": "python-unittest",
+      "start_dir": "tests",
+      "pattern": "test_*.py",
+      "test_ids": [
+        "test_add.Addition.test_positive"
+      ]
+    },
+    {
+      "id": "use-case",
+      "purpose": "validation",
+      "criterion": "The agreed negative and zero use cases pass without skips.",
+      "adapter": "python-unittest",
+      "start_dir": "acceptance",
+      "pattern": "test_*.py",
+      "test_ids": [
+        "test_use_case.AgreedCases.test_negative",
+        "test_use_case.AgreedCases.test_zero"
+      ]
+    }
+  ],
+  "specialists": [
+    {
+      "id": "diagnostic",
+      "instructions": "Diagnose the failing criteria using the protected requirements.",
+      "when": [
+        "quality_failure",
+        "verification_failure"
+      ]
+    }
+  ],
+  "limits": {
+    "max_repairs": 2,
+    "max_agent_calls": 6,
+    "agent_timeout_seconds": 180,
+    "check_timeout_seconds": 60,
+    "max_run_seconds": 900
+  },
+  "host": {
+    "kind": "codex"
+  }
+}

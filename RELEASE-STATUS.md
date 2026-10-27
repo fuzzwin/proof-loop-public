@@ -18,4 +18,8 @@ repairs, including frozen source commit `623267f45bdae97c3f3485baa88087285c8dd6a
 They are scoped source reviews, not an independent human audit or exhaustive security review.
 See the test status for the checks, platform and remaining limits.
 
+The one-request workflow is also integrated with the general task harness. Independent
+agent sessions checked the integration and its final recovery diagnostic at source commit
+`8a69dbbafc0c593c2a803f345ad6f86a8b80a05f`; see test status for the exact coverage.
+
 The experimental native agent bridge is opt-in. Advisory completion does not establish production acceptance, reviewer identity, OS confinement, universal compatibility, or automatic host activation. Source, tests, schemas and synthetic fixtures are included; historical project payloads and runtime evidence are excluded.

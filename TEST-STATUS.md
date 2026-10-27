@@ -83,3 +83,19 @@ recovery. Source timestamps, ownership, ACLs and undeclared state are outside ca
 verification. Evidence and privacy are checked before completion is saved; unrelated
 changes after that point are a separate observation, not an atomic filesystem guarantee.
 These checks do not confer portable receipt acceptance.
+
+## Integration with the general task harness
+
+Public main gained a separate harness while the one-request changes were under review.
+Integration preserves both commands, binds typed checks to file and directory modes, reruns
+checks after verification, provides typed promotion recovery, and keeps old task evidence
+inspectable without migrating it. Two independent agent sessions reviewed the integration
+and the final recovery diagnostic at `8a69dbbafc0c593c2a803f345ad6f86a8b80a05f`.
+
+On the preceding integrated source `e092d51e0cf0aa05580e933af2100c08b0908770`, all
+281 regression tests and 20 protected status checks passed on the macOS runtime above;
+both clean-start and three-domain harness smoke checks passed. The final source changes
+only the harness recovery diagnostic and adds its regression; its focused harness suite
+also passed. An old public-main harness run was separately checked through both the old
+and integrated status readers. Replay of the ACL native trial on the integrated source
+returned the same diff without another agent call.

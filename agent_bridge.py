@@ -708,8 +708,9 @@ class AgentBridge:
         self.coordinator_fingerprint = validate_existing_coordinator(db, self.state, self.root, self.directory)
         self.read_only_replay = True
         self.fresh()
+        result = self.status()
         self.save()
-        return self.status()
+        return result
 
     def load(self):
         # Caller holds project_lock for the entire advance; other hosts cannot overlap.
@@ -1187,8 +1188,8 @@ class AgentBridge:
                 self.state.update(active=None, status='completed_advisory', reason=None)
                 return self._completed_status()
             except Exception:
-                # If a final post-save check fails, restore the durable journal
-                # and active uncertain state so status cannot report completion.
+                # Retain the journal and active uncertain state if completion
+                # validation or its state write fails.
                 self.state = uncertain_state
                 self.save()
                 raise

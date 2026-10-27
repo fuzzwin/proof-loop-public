@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -101,6 +102,23 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertEqual([], list(loop.directory.iterdir()))
         self.assertFalse(coordinator.exists())
 
+    def test_coordinator_change_after_validation_blocks_checkpoint_resume(self):
+        loop = self.open()
+        self.assertEqual('checkpoint', loop.advance(1)['state'])
+        loop.close()
+        validate = bridge.validate_existing_coordinator
+        def mutate(*args, **kwargs):
+            fingerprint = validate(*args, **kwargs)
+            db = sqlite3.connect(self.root / '.proof/coordinator.sqlite')
+            db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
+            db.commit()
+            db.close()
+            return fingerprint
+        with patch('agent_bridge.validate_existing_coordinator', side_effect=mutate):
+            with self.assertRaisesRegex(ValueError, 'coordinator evidence changed since inspection'):
+                loop.advance()
+        self.assertEqual([], self.host.calls)
+
     def test_real_quality_failure_builder_and_fresh_verifier_then_replay(self):
         loop = self.open()
         result = loop.advance()
@@ -110,7 +128,10 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertNotIn('BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER', self.host.calls[-1][1])
         self.assertEqual(1, result['repair_rounds_used'])
         self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
+        loop.close()
+        before = bridge.tree_map(self.root)
         self.assertEqual(result, loop.advance())
+        self.assertEqual(before, bridge.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_matching_quality_still_needs_independent_verifier(self):

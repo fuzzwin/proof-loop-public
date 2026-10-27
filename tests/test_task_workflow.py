@@ -141,6 +141,27 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual(before, bridge.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
+    def test_coordinator_change_after_snapshot_blocks_replay(self):
+        self.run_fix()
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        validate = bridge.validate_existing_coordinator
+        changed = []
+        def mutate_after_validation(*args, **kwargs):
+            fingerprint = validate(*args, **kwargs)
+            db = sqlite3.connect(coordinator)
+            db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
+            db.commit()
+            db.close()
+            changed.append(coordinator.read_bytes())
+            return fingerprint
+        with mock.patch.object(bridge, 'validate_existing_coordinator', side_effect=mutate_after_validation):
+            result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertIn('changed since inspection', result['blocker']['reason'])
+        self.assertEqual(changed[0], coordinator.read_bytes())
+        self.assertEqual(2, len(self.host.calls))
+
     def test_completed_replay_reads_private_snapshot_without_opening_live_coordinator(self):
         original = self.run_fix()
         before = bridge.tree_map(self.root)

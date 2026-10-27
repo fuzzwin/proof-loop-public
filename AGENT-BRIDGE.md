@@ -128,8 +128,9 @@ python3 proofloop agent-preflight --root /path/to/project --plan plan.json
 
 Repeat the same `agent-run` to continue a completed checkpoint. `--max-steps`
 counts state-machine steps, including optional-role routing, not model turns.
-A completed replay rechecks evidence and returns without another model call or
-file edit. A different plan or changed declared file rejects continuation.
+A completed replay rechecks evidence without another model call or persistent source
+or evidence-content changes. It briefly creates a private temporary snapshot and lock;
+directory timestamps may change. A different plan or changed declared file rejects continuation.
 Preflight inspects the declared scope, executable availability and static Python
 dependency hints without running project code or authenticating Codex.
 

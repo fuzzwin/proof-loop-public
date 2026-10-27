@@ -33,7 +33,7 @@ and Codex CLI 0.154.0 using existing ChatGPT authentication:
 - Two real native trials each used one builder and one fresh verifier after one repair round.
   A single-file addition fix and the documented two-file order-total demo returned verified
   diffs while retaining the original source. Both status reports were current. Replaying the
-  completed requests changed no files and made no new calls.
+  completed requests made no new calls or persistent evidence-content changes in those trials.
 - The order patch applied in a separate disposable project, produced the exact candidate
   file hashes, and passed all three protected order tests. Its optional test adapter also
   recorded those exact three IDs during the workflow and final recheck.

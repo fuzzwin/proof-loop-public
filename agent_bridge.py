@@ -165,6 +165,7 @@ def validate_existing_coordinator(path, state, root, private_directory):
             uri = 'file:' + quote(str(snapshot), safe='/') + '?mode=ro'
             with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=5)) as db:
                 _validate_coordinator_snapshot(db, state, root)
+            return before
     except (sqlite3.DatabaseError, OSError, ValueError, TypeError, KeyError, OverflowError) as exc:
         raise ValueError('coordinator evidence missing or invalid; inspect the prior run before continuing') from exc
 
@@ -658,6 +659,7 @@ class AgentBridge:
         self.candidate_root = self.directory / 'candidate'
         self.recovery_deadline = None
         self.read_only_replay = False
+        self.coordinator_fingerprint = None
 
     def close(self):
         if self.coordinator:
@@ -684,8 +686,21 @@ class AgentBridge:
         self._private_fresh()
         core.write_json(self.state_path, self.state)
 
+    def _check_readonly_coordinator(self, *, force=False):
+        if not self.read_only_replay and not force:
+            return
+        try:
+            path = core.safe_project_file(self.root, '.proof/coordinator.sqlite')
+            wal = Path(str(path) + '-wal')
+            require(not wal.is_symlink(), 'unsafe coordinator write-ahead log')
+            current = (digest(path), digest(wal) if wal.exists() else None)
+            require(current == self.coordinator_fingerprint, 'coordinator fingerprint changed')
+        except (ValueError, OSError) as exc:
+            raise ValueError('coordinator evidence changed since inspection') from exc
+
     def load(self):
         # Caller holds project_lock for the entire advance; other hosts cannot overlap.
+        self.close()  # Flush any coordinator held by this object before inspecting evidence.
         _, created = private_run_directory(self.root, self.relative, include_created=True)
         require(digest(plan_file(self.root, self.plan_path)) == self.plan_sha256,
                 'plan changed since parsing; reconstruct bridge before execution')
@@ -731,9 +746,9 @@ class AgentBridge:
             require(not Path(str(db) + suffix).is_symlink(), 'coordinator database symlink rejected')
         if existing_state:
             self._private_fresh()
-            validate_existing_coordinator(db, self.state, self.root, self.directory)
+            self.coordinator_fingerprint = validate_existing_coordinator(db, self.state, self.root, self.directory)
             self._private_fresh()
-        self.close()
+            self._check_readonly_coordinator(force=True)
         self.read_only_replay = (existing_state and not self.state.get('active') and self.state.get('status') in
                                  ('completed_advisory', 'blocked', 'blocked_uncertain', 'cancelled'))
         if self.read_only_replay:
@@ -762,6 +777,7 @@ class AgentBridge:
                 self.coordinator.verify_dependencies(record['coordinator_run'], ['work'])
             else:
                 require(self.read_only_replay, 'coordinator evidence was not checked')
+        self._check_readonly_coordinator()
 
     def remaining(self, limit):
         value = min(limit, self.state['deadline'] - time.time())
@@ -1281,6 +1297,7 @@ class AgentBridge:
             next_action = 'Repeat agent-run with the same run ID and plan to continue automatically.'
         else:
             next_action = 'Review reason and evidence; a revised scope or budget requires a new explicitly authorized plan/run.'
+        self._check_readonly_coordinator()
         return {'run_id': self.run_id, 'state': state, 'phase': self.state['phase'],
                 'repair_rounds_used': self.state['round'], 'agent_calls': self.state['agent_calls'],
                 'reason': self.state.get('reason'), 'candidate_sha256': fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes']),

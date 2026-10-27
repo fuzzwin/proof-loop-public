@@ -34,7 +34,8 @@ legacy schema-1, draft schema-2 and new schema-3 state. Schema 2 is indeterminat
 because it lacks permission evidence. For schema 3, status checks source and candidate content,
 file modes and declared parent-directory modes, uses the final recheck as the latest quality
 evidence, and binds
-the returned patch to its delivery record. The report format remains schema 1 and adds
+the returned patch to its delivery record. Status does not inspect the coordinator database;
+replay checks it separately. The report format remains schema 1 and adds
 `state_schema_version`, `delivery`, `candidate_sha256`, and a validated `diff` when applicable.
 
 ## Read the result

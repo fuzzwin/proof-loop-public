@@ -140,7 +140,7 @@ def blocker(reason, status=None):
         code, action = 'scope_changed', 'Review the changed request/profile and start a new authorized run; the old run is preserved.'
     elif 'run identity mismatch' in lower:
         code, action = 'run_id_collision', 'Inspect the existing run and choose a different run ID.'
-    elif 'saved run state missing' in lower or 'coordinator evidence missing' in lower:
+    elif 'saved run state missing' in lower or 'coordinator evidence missing' in lower or 'coordinator evidence changed' in lower:
         code, action = 'missing_run_evidence', 'Inspect the preserved intake and prior process/evidence before starting any new run; no automatic redispatch is safe.'
     elif 'resource collision' in lower:
         code, action = 'prior_run_unresolved', 'Inspect the prior run holding the project resource and reconcile its recorded process/evidence before starting new work.'

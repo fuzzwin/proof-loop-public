@@ -92,8 +92,9 @@ when applying the patch and verify the resulting modes in your target environmen
 cannot reproduce all changed file modes with a single umask, delivery stops with a blocker.
 
 Repeat `fix` with the exact request, run ID and profile to retrieve a completed result without
-new agent calls or file changes. Changed requests, source, profiles or evidence invalidate
-reuse. An omitted run ID starts a fresh task. Partial intake and unfinished stages are retained
+new agent calls or persistent changes to source or evidence content. Replay briefly creates
+a private temporary snapshot and project lock, so directory timestamps may change. Changed
+requests, source, profiles or evidence invalidate reuse. An omitted run ID starts a fresh task. Partial intake and unfinished stages are retained
 for inspection. If saved run state or coordinator evidence is missing, replay blocks instead
 of dispatching again; inspect the preserved intake and processes before starting new work.
 Never clear locks or active state merely to force a retry.

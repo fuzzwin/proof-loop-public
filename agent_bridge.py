@@ -707,6 +707,7 @@ class AgentBridge:
         self.coordinator_fingerprint = validate_existing_coordinator(db, self.state, self.root, self.directory)
         self.read_only_replay = True
         self.fresh()
+        self.save()
         return self.status()
 
     def load(self):
@@ -1181,7 +1182,6 @@ class AgentBridge:
             self.state['records'].append({'path': str(path.relative_to(self.root)), 'sha256': digest(path), 'coordinator_run': run})
             self.fresh()  # Do not persist completion if the promoted source or evidence changed.
             self.state.update(active=None, status='completed_advisory', reason=None)
-            self.save()
             return self._completed_status()
 
     def repair(self, directory, launched):
@@ -1270,8 +1270,10 @@ class AgentBridge:
                         self.state['phase'] = 'quality'
                     if self.state['status'] == 'running':
                         self.state['status'] = 'checkpoint'
+                    if self.state['status'] == 'completed_advisory':
+                        return self._completed_status()
                     self.save()
-                    if self.state['status'] in ('completed_advisory', 'blocked'):
+                    if self.state['status'] == 'blocked':
                         break
             except Exception as exc:
                 if self.state['status'] != 'blocked_uncertain':
@@ -1279,7 +1281,7 @@ class AgentBridge:
                 self.save()
                 raise
             self.save()
-            return self._completed_status() if self.state['status'] == 'completed_advisory' else self.status()
+            return self.status()
 
     def status(self):
         self._private_fresh()

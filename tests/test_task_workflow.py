@@ -182,6 +182,8 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual([True], changed)
         self.assertEqual('blocked', result['outcome'])
         self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        state = json.loads((self.root / '.proof/agent-runs/resume/state.json').read_text())
+        self.assertNotEqual('completed_advisory', state['status'])
 
     def test_completed_replay_reads_private_snapshot_without_opening_live_coordinator(self):
         original = self.run_fix()

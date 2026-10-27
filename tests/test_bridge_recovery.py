@@ -111,6 +111,23 @@ class RecoveryTests(unittest.TestCase):
         self.assertIsNotNone(persisted['active'])
         self.assertEqual('completed_advisory', loop.recover_promotion()['state'])
 
+    def test_recovery_does_not_persist_completion_if_coordinator_validation_fails(self):
+        self.two_files()
+        loop = self.interrupt_promotion()
+        original_validate = bridge.validate_existing_coordinator
+        calls = []
+        def fail_completed(*args, **kwargs):
+            calls.append(True)
+            if len(calls) == 2:
+                raise ValueError('coordinator evidence missing or invalid')
+            return original_validate(*args, **kwargs)
+        with patch('agent_bridge.validate_existing_coordinator', side_effect=fail_completed):
+            with self.assertRaisesRegex(ValueError, 'coordinator evidence missing or invalid'):
+                loop.recover_promotion()
+        persisted = json.loads(loop.state_path.read_text())
+        self.assertEqual('blocked_uncertain', persisted['status'])
+        self.assertIsNotNone(persisted['active'])
+
     def test_recovery_refuses_external_edit_and_retains_it(self):
         self.two_files()
         loop = self.interrupt_promotion()

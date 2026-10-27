@@ -95,8 +95,9 @@ def prepare(root, run_id, request, profile_name):
             intake = core.load_json(core.safe_project_file(root, intake_name))
             fields = {'schema_version', 'run_id', 'request_sha256', 'profile_path', 'profile_sha256', 'evidence'}
             require(isinstance(intake, dict) and set(intake) == fields and
-                    type(intake['schema_version']) is int and intake['schema_version'] == 1 and
-                    intake['run_id'] == run_id, 'invalid task intake evidence')
+                    type(intake['schema_version']) is int and intake['schema_version'] == 1,
+                    'invalid task intake evidence')
+            require(intake['run_id'] == run_id, 'run identity mismatch; requested run ID collides with existing state')
             require(intake['request_sha256'] == request_hash, 'request changed; use a new run ID')
             require(intake['profile_path'] == profile_name and intake['profile_sha256'] == profile_hash,
                     'project profile changed; use a new authorized run')
@@ -132,6 +133,8 @@ def blocker(reason, status=None):
         code, action = 'missing_project_profile', 'Configure this project once with profile-init using its file scope and trusted checks.'
     elif 'request changed' in lower or 'profile changed' in lower or 'plan changed' in lower:
         code, action = 'scope_changed', 'Review the changed request/profile and start a new authorized run; the old run is preserved.'
+    elif 'run identity mismatch' in lower:
+        code, action = 'run_id_collision', 'Inspect the existing run and choose a different run ID.'
     elif 'resource collision' in lower:
         code, action = 'prior_run_unresolved', 'Inspect the prior run holding the project resource and reconcile its recorded process/evidence before starting new work.'
     elif 'write lock' in lower:

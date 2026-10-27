@@ -103,5 +103,7 @@ To route ordinary chat requests through `fix`, review and merge the optional
 [Codex project instructions](templates/codex/AGENTS.md), setting the toolkit path and profile
 for that project. Setup does not automatically activate other chats or install a background
 service. Local evidence can contain task data and is never uploaded automatically. New task
-and agent-run directories are private to the owner. An existing run directory with group or
-other access is blocked for inspection rather than silently changing its permissions.
+and agent-run directories are created owner-only. On macOS, inherited extended ACLs are
+removed from new run directories; on Linux the bridge checks POSIX ACL attributes. Existing
+run directories with group/other access or ACLs are blocked instead of silently changed.
+Other ACL models and network filesystems need separate host verification.

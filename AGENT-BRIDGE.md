@@ -176,8 +176,10 @@ one-request `fix` path returns a patch and does not perform source promotion.
 Evidence lives under `.proof/agent-runs/RUN/`: frozen state, snapshots, command
 arguments, process references, raw events, final responses, prior file contents
 and nested hashes. These logs can contain task data; they are local, not
-published automatically. New run directories are private to the owner, and the bridge
-refuses an existing nonprivate run directory instead of silently changing its permissions.
+published automatically. New run directories are owner-only; on macOS their inherited
+extended ACLs are removed, while Linux handling checks POSIX ACL attributes. Existing
+run directories with group/other access or ACLs are refused without silently changing them.
+Other ACL models and network filesystems require separate host verification.
 Status 0 means a checkpoint or completed advisory run;
 blocked, cancelled and uncertain work return non-success.
 

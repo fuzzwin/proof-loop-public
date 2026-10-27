@@ -60,6 +60,30 @@ class AgentBridgeTests(unittest.TestCase):
         self.addCleanup(loop.close)
         return loop
 
+    def test_saved_run_identity_mismatch_cannot_replay(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        calls = len(self.host.calls)
+        state = json.loads(loop.state_path.read_text())
+        state['run_id'] = 'TRIAL'
+        loop.state_path.write_text(json.dumps(state))
+        with self.assertRaisesRegex(ValueError, 'run identity mismatch'):
+            loop.advance()
+        self.assertEqual(calls, len(self.host.calls))
+
+    def test_case_insensitive_run_id_alias_cannot_replay(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        alias_dir = self.root / '.proof/agent-runs/TRIAL'
+        if not alias_dir.exists():
+            return  # On case-sensitive filesystems these are distinct paths.
+        calls = len(self.host.calls)
+        alias = bridge.AgentBridge(self.root, 'TRIAL', 'plan.json', host=self.host)
+        self.addCleanup(alias.close)
+        with self.assertRaisesRegex(ValueError, 'run identity mismatch'):
+            alias.advance()
+        self.assertEqual(calls, len(self.host.calls))
+
     def test_real_quality_failure_builder_and_fresh_verifier_then_replay(self):
         loop = self.open()
         result = loop.advance()

@@ -4,6 +4,7 @@ This is a trusted local host, not an OS sandbox or portable acceptance adapter.
 Agents see read-only snapshots and propose content; only this host applies edits.
 """
 import contextlib
+import errno
 import difflib
 import hashlib
 import json
@@ -37,6 +38,74 @@ def checked_project_root(value):
     return core.project_root(str(root))
 
 
+def _darwin_acl_api():
+    import ctypes
+    try:
+        lib = ctypes.CDLL(None, use_errno=True)
+        lib.acl_get_fd_np.argtypes = [ctypes.c_int, ctypes.c_int]
+        lib.acl_get_fd_np.restype = ctypes.c_void_p
+        lib.acl_init.argtypes = [ctypes.c_int]
+        lib.acl_init.restype = ctypes.c_void_p
+        lib.acl_set_fd_np.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+        lib.acl_set_fd_np.restype = ctypes.c_int
+        lib.acl_free.argtypes = [ctypes.c_void_p]
+        lib.acl_free.restype = ctypes.c_int
+        return lib
+    except (AttributeError, OSError) as exc:
+        raise ValueError('private-run ACL support is unavailable on this host') from exc
+
+
+def _directory_has_acl(fd):
+    """Fail closed when an extended or default ACL cannot be inspected."""
+    if sys.platform == 'darwin':
+        import ctypes
+        lib = _darwin_acl_api()
+        ctypes.set_errno(0)
+        acl = lib.acl_get_fd_np(fd, 0x100)  # Darwin ACL_TYPE_EXTENDED.
+        if not acl:
+            error = ctypes.get_errno()
+            if error == errno.ENOENT:
+                return False
+            raise OSError(error or errno.EIO, 'cannot inspect run directory ACL')
+        lib.acl_free(acl)
+        return True
+    if sys.platform.startswith('linux') and hasattr(os, 'getxattr'):
+        for name in ('system.posix_acl_access', 'system.posix_acl_default'):
+            try:
+                os.getxattr(fd, name)
+                return True
+            except OSError as exc:
+                if exc.errno != errno.ENODATA:
+                    raise
+        return False
+    raise ValueError('private-run ACL inspection is unsupported on this host')
+
+
+def _clear_new_directory_acl(fd):
+    """Remove inherited ACLs only from a directory this run just created."""
+    if sys.platform == 'darwin':
+        import ctypes
+        lib = _darwin_acl_api()
+        acl = lib.acl_init(0)
+        if not acl:
+            raise OSError(ctypes.get_errno() or errno.EIO, 'cannot initialize empty run directory ACL')
+        try:
+            if lib.acl_set_fd_np(fd, acl, 0x100) != 0:
+                raise OSError(ctypes.get_errno() or errno.EIO, 'cannot clear inherited run directory ACL')
+        finally:
+            lib.acl_free(acl)
+        return
+    if sys.platform.startswith('linux') and hasattr(os, 'removexattr'):
+        for name in ('system.posix_acl_access', 'system.posix_acl_default'):
+            try:
+                os.removexattr(fd, name)
+            except OSError as exc:
+                if exc.errno != errno.ENODATA:
+                    raise
+        return
+    raise ValueError('private-run ACL handling is unsupported on this host')
+
+
 def private_run_directory(root, relative):
     """Create a private run boundary without altering an existing directory."""
     parts = Path(relative).parts
@@ -51,10 +120,19 @@ def private_run_directory(root, relative):
     except FileExistsError:
         pass
     require(not directory.is_symlink() and directory.is_dir(), 'invalid run evidence directory')
-    if created:
-        os.chmod(directory, 0o700)
-    require(directory.stat().st_mode & 0o077 == 0,
-            'run evidence directory must be private; inspect existing permissions before changing them')
+    require(getattr(os, 'O_DIRECTORY', 0) and getattr(os, 'O_NOFOLLOW', 0),
+            'private-run descriptor checks are unsupported on this host')
+    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if created:
+            _clear_new_directory_acl(fd)
+            os.fchmod(fd, 0o700)
+        require(os.fstat(fd).st_mode & 0o077 == 0,
+                'run evidence directory must be private; inspect existing permissions before changing them')
+        require(not _directory_has_acl(fd),
+                'run evidence directory has an ACL; inspect existing permissions before changing them')
+    finally:
+        os.close(fd)
     return directory
 
 
@@ -506,6 +584,7 @@ class AgentBridge:
         if self.state_path.exists():
             self.state = core.load_json(core.safe_project_file(self.root, self.relative + '/state.json'))
             require(self.state.get('schema_version') == 3, 'legacy bridge run: inspect with the original version; use a new run ID')
+            require(self.state.get('run_id') == self.run_id, 'run identity mismatch; requested run ID collides with existing state')
             require(self.state['plan_sha256'] == digest(plan_file(self.root, self.plan_path)), 'plan changed; use a new run')
         else:
             core.safe_write_path(self.root, self.relative + '/state.json')
@@ -1276,10 +1355,11 @@ def _status_bytes(root_fd, name, optional=False, *, include_mode=False):
         return (raw, info.st_mode & 0o7777) if include_mode else raw
 
 
-def _status_directory_mode(root_fd, name):
+def _status_directory_mode(root_fd, name, *, include_acl=False):
     import stat
     if name == '.':
-        return os.fstat(root_fd).st_mode & 0o7777
+        mode = os.fstat(root_fd).st_mode & 0o7777
+        return (mode, _directory_has_acl(root_fd)) if include_acl else mode
     parts = _status_parts(name)
     flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY | os.O_CLOEXEC
     with contextlib.ExitStack() as handles:
@@ -1288,7 +1368,8 @@ def _status_directory_mode(root_fd, name):
             fd = os.open(part, flags, dir_fd=fd)
             handles.callback(os.close, fd)
             require(stat.S_ISDIR(os.fstat(fd).st_mode), 'directory required: ' + name)
-        return os.fstat(fd).st_mode & 0o7777
+        mode = os.fstat(fd).st_mode & 0o7777
+        return (mode, _directory_has_acl(fd)) if include_acl else mode
 
 
 def _status_json(raw):
@@ -1424,6 +1505,14 @@ def read_status(root, run_id, plan_path):
         except failures as exc:
             issue('unreadable', 'cannot inspect directory ' + name + ': ' + str(exc))
 
+    def check_private_directory(name, label):
+        try:
+            mode, has_acl = _status_directory_mode(root_fd, name, include_acl=True)
+            if mode & 0o077 or has_acl:
+                issue('stale', label + ' evidence directory is not private')
+        except failures as exc:
+            issue('unreadable', 'cannot inspect ' + label + ' evidence privacy: ' + str(exc))
+
     try:
         require(isinstance(run_id, str) and core.RUN_ID_RE.fullmatch(run_id), 'invalid bridge run ID')
         plan_parts = _status_parts(plan_path)
@@ -1443,8 +1532,8 @@ def read_status(root, run_id, plan_path):
                 'unsupported state schema')
         isolated = state['schema_version'] >= 2
         mode_bound = state['schema_version'] == 3
-        if mode_bound and _status_directory_mode(root_fd, relative) & 0o077:
-            issue('stale', 'run evidence directory is not private')
+        if mode_bound:
+            check_private_directory(relative, 'run')
         if not managed:
             relative_name(plan_path, legacy=not mode_bound)
         report['state_schema_version'] = state['schema_version']
@@ -1530,8 +1619,8 @@ def read_status(root, run_id, plan_path):
                 check_hash(name, expected)
         if managed:
             require(isolated, 'managed plans require isolated run state')
-            if mode_bound and _status_directory_mode(root_fd, f'.proof/tasks/{run_id}') & 0o077:
-                issue('stale', 'task evidence directory is not private')
+            if mode_bound:
+                check_private_directory(f'.proof/tasks/{run_id}', 'task')
             intake_name = f'.proof/tasks/{run_id}/intake.json'
             raw_intake = _status_bytes(root_fd, intake_name)
             snapshots.append((intake_name, raw_intake))
@@ -1563,7 +1652,7 @@ def read_status(root, run_id, plan_path):
                              'requirements': [{'id': 'TASK', 'description': request}]}
             require(plan == expected_plan, 'saved plan differs from request and profile')
             profile_name = intake.get('profile_path')
-            relative_name(profile_name)
+            relative_name(profile_name, legacy=not mode_bound)
             require(_status_hash(intake.get('profile_sha256')), 'invalid intake profile hash')
             check_hash(profile_name, intake['profile_sha256'])
             current_profile = _status_bytes(root_fd, profile_name, optional=True)

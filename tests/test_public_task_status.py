@@ -163,6 +163,13 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual('user data\n', (directory / 'existing.txt').read_text())
         self.assertEqual([], self.host.calls)
 
+    def test_unavailable_acl_inspection_blocks_before_dispatch(self):
+        with mock.patch.object(bridge, '_directory_has_acl', side_effect=OSError('ACL unavailable')):
+            result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='acl', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('ACL unavailable', result['blocker']['reason'])
+        self.assertEqual([], self.host.calls)
+
     def test_weakened_run_privacy_makes_status_stale_and_replay_block(self):
         self.fix()
         for path in (self.root / '.proof/tasks/public', self.root / '.proof/agent-runs/public'):
@@ -174,6 +181,41 @@ class PublicTaskStatusTests(unittest.TestCase):
                 self.assertEqual('blocked', replay['outcome'])
                 self.assertIn('run evidence directory must be private', replay['blocker']['reason'])
                 path.chmod(0o700)
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS extended ACL regression')
+    def test_inherited_acls_removed_from_new_private_run_boundaries(self):
+        self.root.chmod(0o755)
+        (self.root / 'app.py').chmod(0o600)
+        for name in ('tasks', 'agent-runs'):
+            parent = self.root / '.proof' / name
+            parent.mkdir(parents=True)
+            subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute,file_inherit,directory_inherit', str(parent)], check=True)
+        self.fix()
+        for path in (self.root / '.proof/tasks/public', self.root / '.proof/agent-runs/public'):
+            fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                self.assertEqual(0, os.fstat(fd).st_mode & 0o077)
+                self.assertFalse(bridge._directory_has_acl(fd))
+            finally:
+                os.close(fd)
+        self.assertEqual('current', self.inspect()['freshness']['state'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS extended ACL regression')
+    def test_existing_acl_is_preserved_and_blocks_or_marks_status_stale(self):
+        self.fix()
+        directory = self.root / '.proof/tasks/public'
+        subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute', str(directory)], check=True)
+        self.assertEqual('stale', self.inspect()['freshness']['state'])
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('has an ACL', result['blocker']['reason'])
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            self.assertTrue(bridge._directory_has_acl(fd))
+        finally:
+            os.close(fd)
+        subprocess.run(['/bin/chmod', '-N', str(directory)], check=True)
+        self.assertEqual('current', self.inspect()['freshness']['state'])
 
     def test_runtime_failure_with_active_work_requires_reconciliation(self):
         item = tasks.blocker('Codex process failed; inspect stderr', {'active_stage': {'stage': 'builder-1'}})

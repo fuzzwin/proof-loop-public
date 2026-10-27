@@ -34,7 +34,9 @@ def read_profile(root, name):
     bridge.validate_plan({**plan, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
     require(name not in plan['editable'], 'project profile cannot be editable')
     expected = bridge.file_map(root, plan['files'])
-    require(all(expected[n] is not None for n in plan['protected']), 'protected profile files must exist')
+    bridge.directory_modes(root, plan['files'])
+    require(all(expected[n] is not None for n in set(plan['files']) - set(plan['editable'])),
+            'declared noneditable profile files must exist')
     return profile, hashlib.sha256(raw).hexdigest()
 
 
@@ -55,7 +57,9 @@ def initialize_profile(args):
     bridge.validate_plan({**scope, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
     require(name not in scope['editable'], 'project profile cannot be editable')
     expected = bridge.file_map(root, scope['files'])
-    require(all(expected[n] is not None for n in scope['protected']), 'protected profile files must exist')
+    bridge.directory_modes(root, scope['files'])
+    require(all(expected[n] is not None for n in set(scope['files']) - set(scope['editable'])),
+            'declared noneditable profile files must exist')
     with core.project_lock(root):
         path = core.safe_write_path(root, name)
         core.write_json(path, profile, exclusive=True)
@@ -129,11 +133,13 @@ def blocker(reason, status=None):
         code, action = 'no_progress', 'Review the last proposal and findings; add the missing requirement or capability before a new run.'
     elif 'cancel' in lower:
         code, action = 'cancelled', 'Inspect the saved candidate and evidence. This run will not resume after cancellation.'
+    elif 'patch' in lower or 'umask' in lower:
+        code, action = 'patch_delivery_failed', 'Inspect the candidate and patch-check evidence; split incompatible permission changes or use a separately authorized apply workflow.'
     elif 'outside completed' in lower or 'source' in lower or 'candidate' in lower or 'evidence changed' in lower:
         code, action = 'state_changed', 'Inspect source/candidate/evidence changes before another run. No patch is certified for the changed state.'
     elif status.get('active_stage') or 'unfinished stage' in lower:
         code, action = 'uncertain_stage', 'Inspect the recorded process and stage evidence. Do not redispatch or clear active state blindly.'
-    elif 'unittest' in lower or 'test adapter' in lower or 'runtime' in lower or 'codex' in lower or 'process' in lower:
+    elif 'unittest' in lower or 'test adapter' in lower or 'runtime' in lower or 'codex' in lower or 'process' in lower or 'git is required' in lower:
         code, action = 'runtime_failure', 'Inspect the recorded stderr and cleanup evidence; resolve the runtime failure before a new run.'
     else:
         code, action = 'invalid_task_or_state', 'Inspect the reason and saved evidence, and correct the project profile or task input.'
@@ -146,6 +152,15 @@ def blocker(reason, status=None):
                 if check.get('exit_code') != 0:
                     findings.append({'command': check.get('argv'), 'exit_code': check.get('exit_code'),
                                      'stderr_tail': check.get('stderr', '')[-1500:]})
+            adapter = item.get('test_adapter') or {}
+            findings.extend({'test': row.get('id'), 'status': row.get('status')}
+                            for row in adapter.get('tests', []) if row.get('status') != 'pass')
+            findings.extend({'collection': row.get('file'), 'error': row.get('error', '')[-1500:]}
+                            for row in adapter.get('collection_errors', []))
+            findings.extend({'fixture': row.get('id'), 'status': row.get('status'),
+                             'detail': row.get('detail', '')[-1500:]} for row in adapter.get('fixture_errors', []))
+            if any((adapter.get('coverage') or {}).values()):
+                findings.append({'test_coverage': adapter['coverage']})
             findings.extend(item.get('findings', []))
     return {'code': code, 'reason': reason, 'findings': findings,
             'next_action': action}
@@ -173,8 +188,10 @@ def execute(root, request, *, run_id, profile_name='proofloop-project.json', hos
                 result['diff']['candidate_sha256'] == result['candidate_sha256'], 'delivered diff hash/candidate mismatch')
         return {'outcome': 'verified_diff', 'run_id': run_id, **metadata, 'run': result,
                 'diff': result['diff'], 'acceptance': 'not_accepted',
-                'verification': 'local checks and fresh agent review of exact candidate',
-                'next_action': 'Review the patch; source files have not been changed.'}
+                'verification': 'local checks and fresh agent review of candidate content and declared file/directory modes; other filesystem metadata excluded',
+                'next_action': ('Review the patch; apply it with umask ' + result['diff']['apply_umask'] +
+                                ' and verify resulting permissions.' if result['diff']['apply_umask'] else
+                                'Review the empty patch; source files have not been changed.')}
     except (ValueError, OSError, KeyError, TypeError, OverflowError) as exc:
         status = None
         if loop is not None and hasattr(loop, 'state'):

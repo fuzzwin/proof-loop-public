@@ -8,18 +8,22 @@ python3 proofloop fix --root /path/to/project \
 ```
 
 Proof Loop runs the checks, sends failures or verifier findings back through bounded repairs,
-starts a fresh verifier for the actual candidate, and reruns checks before returning a patch.
+starts a fresh verifier for the candidate, reruns checks, and applies the patch in a disposable
+copy before returning it. The copy must match the candidate's declared content and modes.
 You do not relay messages between workers. A missing dependency, uncertain process, changed
 source, unmet requirement, or exhausted budget produces a blocker with a reason and next action.
 
 The candidate stays in `.proof/agent-runs/RUN/candidate/`. `fix` leaves the project's source
 files unchanged. Review the returned patch and apply it with your normal Git workflow.
-`verified_diff` means local checks passed and a fresh model session reviewed the candidate;
-formal portable acceptance still reads `not_accepted`.
+`verified_diff` means local checks passed, a fresh model session reviewed the candidate,
+and the patch matched it in a disposable application. This binds declared file contents,
+file modes, and declared parent-directory modes. It does not bind timestamps, ownership,
+ACLs, inode identity, external services or undeclared filesystem state. Checks must not
+depend on those unbound properties. Formal portable acceptance still reads `not_accepted`.
 
 ## Try a disposable example
 
-The optional agent workflow needs Python 3.10+, a POSIX host, and an installed Codex CLI
+The optional agent workflow needs Python 3.10+, Git, a POSIX host, and an installed Codex CLI
 already signed in. The tested host and limits are recorded in [test status](TEST-STATUS.md).
 Native calls use that account's allowance. No API key or Python package is needed.
 
@@ -38,9 +42,10 @@ discounts, quantities, multiple order lines and empty orders. A successful run p
 path under the temporary project. Inspect it, then check and apply it if desired:
 
 ```sh
-# Replace PATCH_PATH with the path printed by fix.
-git -C "$proofloop_demo" apply --check PATCH_PATH
-git -C "$proofloop_demo" apply PATCH_PATH
+# Replace PATCH_PATH and APPLY_UMASK with the values printed by fix.
+# Use a subshell so the permission setting does not affect your terminal.
+(umask APPLY_UMASK; git -C "$proofloop_demo" apply --check PATCH_PATH)
+(umask APPLY_UMASK; git -C "$proofloop_demo" apply PATCH_PATH)
 ```
 
 ## Configure your project once
@@ -58,6 +63,9 @@ This creates `proofloop-project.json` without overwriting an existing file. Revi
 List every source and command dependency; include read-only supporting files with `--context`.
 The request supplies the goal. It cannot expand file permissions, select new commands, or
 raise budgets. The profile cannot authorize edits to itself.
+Every declared noneditable file and every declared file's parent directories must already
+exist. Prospective files are allowed only in editable scope. Paths containing control
+characters or special permission bits are unsupported.
 
 New profiles default to two repair rounds, six agent calls, 180 seconds per agent,
 30 seconds per check and 600 seconds total. Profiles imported from a plan keep its limits
@@ -77,6 +85,10 @@ python3 proofloop agent-status --root "$proofloop_demo" --run-id order-fix \
 Status reads both the original run format and the new isolated-candidate format without
 starting Codex, opening the coordinator database, acquiring a writer lock, or writing files.
 It reports stale or uncertain evidence explicitly; matching hashes are consistency evidence.
+
+The result prints `apply_umask` in JSON and states the same setting in text output. Use it
+when applying the patch and verify the resulting modes in your target environment. If Git
+cannot reproduce all changed file modes with a single umask, delivery stops with a blocker.
 
 Repeat `fix` with the exact request, run ID and profile to retrieve a completed result without
 new agent calls or file changes. Changed requests, source, profiles or evidence invalidate

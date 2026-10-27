@@ -49,7 +49,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         with mock.patch.object(bridge, 'AgentBridge', side_effect=AssertionError('execution host')):
             report = self.inspect()
         self.assertEqual({'state': 'current', 'issues': []}, report['freshness'])
-        self.assertEqual(2, report['state_schema_version'])
+        self.assertEqual(3, report['state_schema_version'])
         self.assertEqual(result['diff'], report['diff'])
         self.assertEqual('TASK', report['verifier']['requirements'][0]['id'])
         self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())
@@ -144,6 +144,123 @@ class PublicTaskStatusTests(unittest.TestCase):
         report = self.inspect()
         self.assertEqual('current', report['freshness']['state'], report)
         self.assertTrue(report['quality']['test_adapter']['passed'])
+
+    def test_syntax_error_in_candidate_returns_to_builder(self):
+        (self.root / 'app.py').write_text('def broken(:\n')
+        (self.root / 'test_app.py').write_text('import unittest\nfrom app import VALUE\n'
+            'class Check(unittest.TestCase):\n    def test_value(self):\n        self.assertEqual(2, VALUE)\n')
+        self.scope['files'].append('test_app.py')
+        self.scope['protected'].append('test_app.py')
+        self.scope['test_adapter'] = {'type': 'python-unittest', 'tests': ['test_app.py'],
+                                      'expected_ids': ['test_app.Check.test_value']}
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = self.fix()
+        self.assertEqual(['builder', 'verifier'], [role for role, _ in self.host.calls])
+        self.assertIn('SyntaxError', result['run']['feedback'][0]['test_adapter']['collection_errors'][0]['error'])
+        self.assertEqual('current', self.inspect()['freshness']['state'])
+
+    def test_missing_noneditable_context_blocks_before_dispatch(self):
+        self.scope['files'].append('missing-context.md')
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='missing', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('noneditable', result['blocker']['reason'])
+        self.assertEqual([], self.host.calls)
+        self.assertFalse((self.root / '.proof').exists())
+
+    def test_bad_intake_request_hash_cannot_be_current(self):
+        self.fix()
+        path = self.root / '.proof/tasks/public/intake.json'
+        intake = json.loads(path.read_text())
+        intake['request_sha256'] = '0' * 64
+        path.write_text(json.dumps(intake))
+        self.assertEqual('unreadable', self.inspect()['freshness']['state'])
+
+    def test_source_and_candidate_permission_changes_make_run_stale(self):
+        self.fix()
+        for name in ('app.py', 'check.py', '.proof/agent-runs/public/candidate/app.py'):
+            with self.subTest(path=name):
+                path = self.root / name
+                original = path.stat().st_mode & 0o777
+                path.chmod(original ^ 0o100)
+                report = self.inspect()
+                self.assertEqual('stale', report['freshness']['state'], report)
+                replay = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+                self.assertEqual('blocked', replay['outcome'])
+                self.assertEqual(2, len(self.host.calls))
+                path.chmod(original)
+
+    def test_root_and_declared_parent_permissions_match_after_patch(self):
+        (self.root / 'lib').mkdir(mode=0o700)
+        (self.root / 'lib' / 'context.txt').write_text('protected context\n')
+        self.root.chmod(0o700)
+        (self.root / 'check.py').write_text("from pathlib import Path\nfrom app import VALUE\n"
+            "assert VALUE == 2 and Path('.').stat().st_mode & 0o777 == 0o700 and Path('lib').stat().st_mode & 0o777 == 0o700\n")
+        self.scope['files'].append('lib/context.txt')
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = self.fix()
+        self.assertEqual('current', self.inspect()['freshness']['state'])
+        patch = self.root / result['diff']['path']
+        subprocess.run(['git', 'apply', str(patch)], cwd=self.root, check=True,
+                       umask=int(result['diff']['apply_umask'], 8))
+        subprocess.run([sys.executable, '-B', 'check.py'], cwd=self.root, check=True)
+
+    def test_directory_permission_drift_is_stale(self):
+        (self.root / 'lib').mkdir(mode=0o700)
+        (self.root / 'lib' / 'context.txt').write_text('context\n')
+        self.scope['files'].append('lib/context.txt')
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        self.fix()
+        for path in (self.root, self.root / 'lib', self.root / '.proof/agent-runs/public/candidate/lib'):
+            with self.subTest(path=str(path)):
+                original = path.stat().st_mode & 0o777
+                path.chmod(original ^ 0o010)
+                self.assertEqual('stale', self.inspect()['freshness']['state'])
+                replay = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+                self.assertEqual('blocked', replay['outcome'])
+                path.chmod(original)
+        self.assertEqual(2, len(self.host.calls))
+
+    def test_missing_prospective_parent_blocks_before_dispatch(self):
+        self.scope['files'].append('missing-dir/new.py')
+        self.scope['editable'].append('missing-dir/new.py')
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='missing-parent', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('parent directory missing', result['blocker']['reason'])
+        self.assertEqual([], self.host.calls)
+
+    def test_quality_command_chmod_and_empty_directory_mutation_are_detected(self):
+        for mutation in ("import os\nos.chmod('app.py', 0o755)\n", "from pathlib import Path\nPath('empty-dir').mkdir()\n"):
+            with self.subTest(mutation=mutation):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory).resolve()
+                    (root / 'app.py').write_text('VALUE = 1\n')
+                    (root / 'check.py').write_text('from app import VALUE\nassert VALUE == 2\n')
+                    (root / 'mutate.py').write_text(mutation)
+                    scope = {**self.scope, 'files': ['app.py', 'check.py', 'mutate.py'],
+                             'protected': ['check.py', 'mutate.py'],
+                             'quality': [['{python}', '-B', 'mutate.py'], ['{python}', '-B', 'check.py']]}
+                    (root / 'proofloop-project.json').write_text(json.dumps({'schema_version': 1, 'plan': scope}))
+                    result = tasks.execute(root, 'Make VALUE equal 2.', run_id='mutate', host=self.host)
+                    self.assertEqual('blocked', result['outcome'])
+                    self.assertIn('changed the frozen snapshot', result['blocker']['reason'])
+                    self.assertEqual([], self.host.calls)
+
+    def test_failed_adapter_test_appears_in_blocker(self):
+        (self.root / 'check.py').write_text('assert True\n')
+        (self.root / 'test_app.py').write_text('import unittest\nfrom app import VALUE\n'
+            'class Check(unittest.TestCase):\n    def test_value(self):\n        self.assertEqual(2, VALUE)\n')
+        self.scope['files'].append('test_app.py')
+        self.scope['protected'].append('test_app.py')
+        self.scope['test_adapter'] = {'type': 'python-unittest', 'tests': ['test_app.py'],
+                                      'expected_ids': ['test_app.Check.test_value']}
+        self.scope['max_repairs'] = 0
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='no-repair', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn({'test': 'test_app.Check.test_value', 'status': 'fail'}, result['blocker']['findings'])
+        self.assertEqual([], self.host.calls)
 
     def test_apply_run_remains_inspectable_after_promotion(self):
         from test_agent_bridge import ScriptedHost

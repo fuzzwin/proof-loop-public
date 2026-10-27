@@ -32,6 +32,8 @@ class BridgeStop(ValueError):
 
 def relative_name(value):
     require(isinstance(value, str) and bool(value.strip()), 'relative path required')
+    require(not any(ord(char) < 32 or ord(char) == 127 for char in value),
+            'control characters in paths are unsupported')
     p = Path(value)
     require(not p.is_absolute() and p.parts and '..' not in p.parts and str(p) == value,
             'paths must be normalized and project-relative')
@@ -69,6 +71,51 @@ def file_map(root, names):
     return result
 
 
+def file_modes(root, names):
+    result = {}
+    for name in names:
+        path = file_path(root, name, optional=True)
+        mode = path.stat().st_mode & 0o7777 if path.exists() else None
+        require(mode is None or not mode & 0o7000, 'special permission bits are unsupported: ' + name)
+        result[name] = mode
+    return result
+
+
+def directory_names(names):
+    directories = {'.'}
+    for name in names:
+        parent = Path(name).parent
+        while str(parent) != '.':
+            directories.add(str(parent))
+            parent = parent.parent
+    return directories
+
+
+def directory_modes(root, names):
+    result = {}
+    for name in sorted(directory_names(names)):
+        cursor = root
+        for part in (() if name == '.' else Path(name).parts):
+            cursor = cursor / part
+            require(not cursor.is_symlink(), 'symlink in directory path')
+        require(cursor.is_dir(), 'declared file parent directory missing: ' + name)
+        mode = cursor.stat().st_mode & 0o7777
+        require(not mode & 0o7000, 'special directory permission bits are unsupported: ' + name)
+        result[name] = mode
+    return result
+
+
+def prepare_directories(root, modes):
+    for name in sorted(modes, key=lambda n: (len(Path(n).parts), n)):
+        if name != '.':
+            (root / name).mkdir(parents=True, exist_ok=True)
+
+
+def set_directory_modes(root, modes):
+    for name in sorted(modes, key=lambda n: (len(Path(n).parts), n), reverse=True):
+        os.chmod(root if name == '.' else root / name, modes[name])
+
+
 def tree_map(root):
     result = {}
     for p in sorted(root.rglob('*')):
@@ -78,8 +125,24 @@ def tree_map(root):
     return result
 
 
-def fingerprint(value):
-    return hashlib.sha256(core.canonical_json(value).encode()).hexdigest()
+def tree_state(root):
+    """Freeze file bytes, modes and directories, including empty directories."""
+    result = {'.': {'type': 'directory', 'mode': root.stat().st_mode & 0o7777}}
+    for path in sorted(root.rglob('*')):
+        require(not path.is_symlink(), 'snapshot/evidence symlink rejected')
+        name = str(path.relative_to(root))
+        mode = path.stat().st_mode & 0o7777
+        if path.is_dir():
+            result[name] = {'type': 'directory', 'mode': mode}
+        else:
+            require(path.is_file(), 'unsupported snapshot entry: ' + name)
+            result[name] = {'type': 'file', 'mode': mode, 'sha256': digest(path)}
+    return result
+
+
+def fingerprint(value, modes=None, directories=None):
+    data = value if modes is None else {'files': value, 'modes': modes, 'directories': directories}
+    return hashlib.sha256(core.canonical_json(data).encode()).hexdigest()
 
 
 def validate_plan(plan, path):
@@ -193,17 +256,24 @@ def validate_response(role, value, candidate, requirements=None):
 
 class ProcessRunner:
     """No shell; recorded PID; bounded output/time; terminate process group on stop."""
-    def run(self, argv, *, cwd, directory, timeout, cancelled, launched, stdin=None):
+    def run(self, argv, *, cwd, directory, timeout, cancelled, launched, stdin=None, umask=None, isolate_git=False):
         require(os.name == 'posix', 'bounded process-group execution currently requires a POSIX host')
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
         # This adapter uses saved native auth, never an implicitly inherited API key.
         env.pop('OPENAI_API_KEY', None)
         env.pop('CODEX_API_KEY', None)
+        if isolate_git:
+            for name in list(env):
+                if name.startswith('GIT_'):
+                    env.pop(name)
+            env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
+                       GIT_CEILING_DIRECTORIES=str(Path(cwd).parent))
         stdout, stderr = directory / 'stdout.log', directory / 'stderr.log'
         start = time.monotonic()
         with stdout.open('xb') as out, stderr.open('xb') as err:
+            options = {'umask': umask} if umask is not None else {}
             proc = subprocess.Popen(argv, cwd=cwd, env=env, stdin=subprocess.PIPE,
-                                    stdout=out, stderr=err, start_new_session=(os.name == 'posix'))
+                                    stdout=out, stderr=err, start_new_session=(os.name == 'posix'), **options)
             try:
                 launched(proc.pid)
                 pending = stdin.encode() if stdin is not None else None
@@ -316,23 +386,42 @@ class CodexHost:
 
 
 def validate_test_report(report, adapter, run=None, *, check_runtime=True):
-    require(isinstance(report, dict) and set(report) == {'schema_version', 'runtime', 'tests', 'tests_run', 'passed', 'test_files'},
+    require(isinstance(report, dict) and type(report.get('schema_version')) is int and
+            report['schema_version'] in (1, 2), 'invalid test adapter report')
+    base_fields = {'schema_version', 'runtime', 'tests', 'tests_run', 'passed', 'test_files'}
+    require(set(report) == (base_fields if report['schema_version'] == 1 else
+                            base_fields | {'collection_errors', 'fixture_errors', 'coverage'}),
             'invalid test adapter report')
     runtime = report['runtime']
-    require(type(report['schema_version']) is int and report['schema_version'] == 1 and
-            isinstance(runtime, dict) and set(runtime) == {'executable', 'version'} and
+    require(isinstance(runtime, dict) and set(runtime) == {'executable', 'version'} and
             all(isinstance(v, str) and v.strip() for v in runtime.values()), 'invalid test adapter runtime')
     if check_runtime:
         require(runtime == {'executable': sys.executable, 'version': sys.version}, 'test adapter runtime mismatch')
     rows = report['tests']
-    require(isinstance(rows, list) and rows and type(report['tests_run']) is int and len(rows) == report['tests_run'],
+    require(isinstance(rows, list) and type(report['tests_run']) is int and len(rows) == report['tests_run'],
             'empty or incomplete test adapter report')
     require(all(isinstance(r, dict) and set(r) == {'id', 'status'} and isinstance(r['id'], str) and
                 r['status'] in {'pass', 'fail', 'error', 'skipped', 'expected_failure', 'unexpected_success', 'incomplete'}
                 for r in rows), 'invalid test outcome')
     ids = [r['id'] for r in rows]
-    require(len(ids) == len(set(ids)) and set(ids) == set(adapter['expected_ids']), 'test IDs differ from frozen expectation')
-    passed = all(r['status'] == 'pass' for r in rows)
+    coverage = {'missing': sorted(set(adapter['expected_ids']) - set(ids)),
+                'unexpected': sorted(set(ids) - set(adapter['expected_ids'])),
+                'duplicate': sorted({name for name in ids if ids.count(name) > 1})}
+    if report['schema_version'] == 1:
+        require(rows, 'empty or incomplete test adapter report')
+        require(not any(coverage.values()), 'test IDs differ from frozen expectation')
+        errors = False
+    else:
+        require(report['coverage'] == coverage, 'test adapter coverage differs from frozen expectation')
+        collection, fixtures = report['collection_errors'], report['fixture_errors']
+        require(isinstance(collection, list) and all(isinstance(e, dict) and set(e) == {'file', 'error'} and
+                e['file'] in adapter.get('tests', []) and isinstance(e['error'], str) and e['error'].strip()
+                for e in collection), 'invalid test collection errors')
+        require(isinstance(fixtures, list) and all(isinstance(e, dict) and set(e) == {'id', 'status', 'detail'} and
+                isinstance(e['id'], str) and e['id'].strip() and e['status'] in ('error', 'skipped') and
+                isinstance(e['detail'], str) and e['detail'].strip() for e in fixtures), 'invalid test fixture errors')
+        errors = bool(collection or fixtures or any(coverage.values()))
+    passed = bool(rows) and all(r['status'] == 'pass' for r in rows) and not errors
     require(type(report['passed']) is bool and report['passed'] == passed and
             (run is None or run['exit_code'] == (0 if passed else 1)),
             'test outcomes disagree with process exit')
@@ -356,6 +445,7 @@ class AgentBridge:
         self.cancel_path = self.directory / 'cancel.json'
         self.coordinator = None
         self.candidate_root = self.directory / 'candidate'
+        self.recovery_deadline = None
 
     def close(self):
         if self.coordinator:
@@ -371,25 +461,34 @@ class AgentBridge:
                 'plan changed since parsing; reconstruct bridge before execution')
         if self.state_path.exists():
             self.state = core.load_json(core.safe_project_file(self.root, self.relative + '/state.json'))
-            require(self.state.get('schema_version') == 2, 'legacy bridge run: inspect with the original version; use a new run ID')
+            require(self.state.get('schema_version') == 3, 'legacy bridge run: inspect with the original version; use a new run ID')
             require(self.state['plan_sha256'] == digest(plan_file(self.root, self.plan_path)), 'plan changed; use a new run')
         else:
             core.safe_write_path(self.root, self.relative + '/state.json')
             expected = file_map(self.root, self.plan['files'])
-            require(all(expected[n] is not None for n in self.plan['protected']), 'protected files must exist')
+            modes = file_modes(self.root, self.plan['files'])
+            directories = directory_modes(self.root, self.plan['files'])
+            require(all(expected[n] is not None for n in set(self.plan['files']) - set(self.plan['editable'])),
+                    'declared noneditable files must exist')
             require(sum(file_path(self.root, n).stat().st_size for n,v in expected.items() if v is not None) <= MAX_BYTES, 'declared workspace too large')
-            self.state = {'schema_version': 2, 'run_id': self.run_id, 'plan_sha256': self.plan_sha256,
+            self.state = {'schema_version': 3, 'run_id': self.run_id, 'plan_sha256': self.plan_sha256,
                           'expected': expected, 'initial': expected.copy(), 'source_expected': expected.copy(), 'phase': 'quality', 'round': 0,
+                          'candidate_modes': modes.copy(), 'initial_modes': modes.copy(), 'source_modes': modes.copy(),
+                          'directory_modes': directories,
                           'agent_calls': 0, 'threads': [], 'deadline': time.time() + self.plan['max_run_seconds'],
-                          'candidate_history': [fingerprint(expected)],
+                          'candidate_history': [fingerprint(expected, modes, directories)],
                           'status': 'checkpoint', 'active': None, 'records': [], 'feedback': [], 'trigger': None}
             self.candidate_root.mkdir()
+            prepare_directories(self.candidate_root, directories)
             for name, value in expected.items():
                 if value is not None:
                     target = self.candidate_root / name
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy(file_path(self.root, name), target)
+            set_directory_modes(self.candidate_root, directories)
             self.state['adapter_sha256'] = digest(Path(__file__).with_name('unittest_adapter.py'))
+            require(file_modes(self.candidate_root, self.plan['files']) == modes, 'candidate permissions changed during copy')
+            require(directory_modes(self.candidate_root, self.plan['files']) == directories, 'candidate directory permissions changed during copy')
             self.save()
         db_rel = '.proof/coordinator.sqlite'
         db = core.safe_project_file(self.root, db_rel) if (self.root / db_rel).exists() else core.safe_write_path(self.root, db_rel)
@@ -403,7 +502,11 @@ class AgentBridge:
         require(digest(plan_file(self.root, self.plan_path)) == self.state['plan_sha256'], 'frozen plan changed')
         if source:
             require(file_map(self.root, self.plan['files']) == self.state['source_expected'], 'declared source/control files changed outside completed bridge stage')
+            require(file_modes(self.root, self.plan['files']) == self.state['source_modes'], 'declared source permissions changed outside completed bridge stage')
+            require(directory_modes(self.root, self.plan['files']) == self.state['directory_modes'], 'declared source directory permissions changed outside completed bridge stage')
         require(file_map(self.candidate_root, self.plan['files']) == self.state['expected'], 'candidate files changed outside completed bridge stage')
+        require(file_modes(self.candidate_root, self.plan['files']) == self.state['candidate_modes'], 'candidate permissions changed outside completed bridge stage')
+        require(directory_modes(self.candidate_root, self.plan['files']) == self.state['directory_modes'], 'candidate directory permissions changed outside completed bridge stage')
         require(digest(Path(__file__).with_name('unittest_adapter.py')) == self.state['adapter_sha256'], 'test adapter changed; use the pinned version')
         for record in self.state['records']:
             path = core.safe_project_file(self.root, record['path'])
@@ -425,7 +528,10 @@ class AgentBridge:
     def guard(self):
         if self.cancelled():
             raise BridgeStop('cancelled')
-        self.remaining(self.plan['max_run_seconds'])
+        if self.recovery_deadline is not None:
+            require(time.monotonic() < self.recovery_deadline, 'promotion recovery time budget exhausted')
+        else:
+            self.remaining(self.plan['max_run_seconds'])
 
     def transition(self, run, operation, **args):
         task = self.coordinator.snapshot(run)[0]
@@ -477,17 +583,22 @@ class AgentBridge:
     def snapshot(self, directory):
         workspace = directory / 'workspace'
         workspace.mkdir()
+        prepare_directories(workspace, self.state['directory_modes'])
         for name, value in self.state['expected'].items():
             if value is None:
                 continue
             dst = workspace / name
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(file_path(self.candidate_root, name), dst)
+        set_directory_modes(workspace, self.state['directory_modes'])
+        require(directory_modes(workspace, self.plan['files']) == self.state['directory_modes'],
+                'snapshot directory permissions differ from candidate')
         return workspace
 
     def quality(self, directory, launched):
         workspace = self.snapshot(directory)
         before = tree_map(workspace)
+        frozen_tree = tree_state(workspace)
         results = []
         for i, command in enumerate(self.plan['quality']):
             self.fresh()
@@ -498,7 +609,7 @@ class AgentBridge:
                                      timeout=self.remaining(self.plan['check_timeout_seconds']),
                                      cancelled=self.cancelled, launched=launched)
             self.guard()
-            require(tree_map(workspace) == before, 'quality command changed the frozen snapshot')
+            require(tree_state(workspace) == frozen_tree, 'quality command changed the frozen snapshot')
             results.append({**result, 'stdout': (check / 'stdout.log').read_text(errors='replace')[-20000:],
                             'stderr': (check / 'stderr.log').read_text(errors='replace')[-20000:]})
         adapter_result = None
@@ -506,13 +617,15 @@ class AgentBridge:
             check = directory / 'unittest'
             check.mkdir()
             report = check / 'tests.json'
+            expected_ids = check / 'expected-ids.json'
+            core.write_json(expected_ids, self.plan['test_adapter']['expected_ids'], exclusive=True)
             argv = [sys.executable, '-B', str(Path(__file__).with_name('unittest_adapter.py')),
-                    str(report), *self.plan['test_adapter']['tests']]
+                    str(report), str(expected_ids), *self.plan['test_adapter']['tests']]
             run = self.runner.run(argv, cwd=workspace, directory=check,
                                   timeout=self.remaining(self.plan['check_timeout_seconds']),
                                   cancelled=self.cancelled, launched=launched)
             self.guard()
-            require(tree_map(workspace) == before, 'test adapter changed the frozen snapshot')
+            require(tree_state(workspace) == frozen_tree, 'test adapter changed the frozen snapshot')
             require(report.is_file() and not report.is_symlink() and report.stat().st_size <= MAX_BYTES,
                     'test adapter result missing or oversized')
             adapter_result = validate_test_report(core.load_json(report), self.plan['test_adapter'], run)
@@ -528,10 +641,11 @@ class AgentBridge:
         self.state['agent_calls'] += 1  # Burn before dispatch, including uncertain attempts.
         self.save()
         workspace = self.snapshot(directory)
-        before = tree_map(workspace)
-        candidate = fingerprint(self.state['expected'])
+        before = tree_state(workspace)
+        candidate = fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes'])
         common = {'goal': self.plan['goal'], 'candidate_sha256': candidate,
-                  'files': self.state['expected'], 'protected': self.plan['protected']}
+                  'files': self.state['expected'], 'file_modes': self.state['candidate_modes'],
+                  'directory_modes': self.state['directory_modes'], 'protected': self.plan['protected']}
         if self.plan.get('requirements'):
             common['requirements'] = self.plan['requirements']
         if role == 'builder':
@@ -551,7 +665,7 @@ class AgentBridge:
                           timeout=self.remaining(self.plan['agent_timeout_seconds']),
                           cancelled=self.cancelled, launched=launched, **extra)
         self.guard()
-        require(tree_map(workspace) == before, 'agent changed the frozen snapshot')
+        require(tree_state(workspace) == before, 'agent changed the frozen snapshot')
         require(result['thread_id'] not in self.state['threads'], 'worker/verifier thread identity reused; fresh context required')
         self.state['threads'].append(result['thread_id'])
         validate_response(role, result['response'], candidate, self.plan.get('requirements'))
@@ -575,9 +689,12 @@ class AgentBridge:
         self.fresh()
         original = self.state['expected'].copy()
         proposed = original.copy()
+        proposed_modes = self.state['candidate_modes'].copy()
         for c in changes:
             proposed[c['path']] = hashlib.sha256(c['content'].encode()).hexdigest()
-        require(fingerprint(proposed) not in self.state['candidate_history'],
+            if original[c['path']] is None:
+                proposed_modes[c['path']] = 0o600
+        require(fingerprint(proposed, proposed_modes, self.state['directory_modes']) not in self.state['candidate_history'],
                 'no progress: builder repeated a previously checked candidate')
         for c in changes:
             self.guard()
@@ -590,18 +707,21 @@ class AgentBridge:
             core.atomic_write(p, c['content'].encode(), expected_sha256=original[c['path']],
                               exclusive=original[c['path']] is None, mode=mode)
         after = file_map(self.candidate_root, self.plan['files'])
+        after_modes = file_modes(self.candidate_root, self.plan['files'])
         self.guard()
         require(after != original, 'builder proposed no material change')
         require(all(after[n] == original[n] for n in self.plan['protected']), 'protected input changed')
+        require(after_modes == proposed_modes, 'candidate permissions changed during repair')
         self.state['expected'] = after
-        self.state['candidate_history'].append(fingerprint(after))
+        self.state['candidate_modes'] = after_modes
+        self.state['candidate_history'].append(fingerprint(after, after_modes, self.state['directory_modes']))
         return {'before': original, 'after': after}
 
     def deliver_diff(self, directory, launched):
         self.guard()
         self.fresh()
         require(self.state['quality']['passed'] and self.state.get('final_verifier_thread') and
-                self.state['final_candidate_sha256'] == fingerprint(self.state['expected']),
+                self.state['final_candidate_sha256'] == fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes']),
                 'diff requires checks and verifier for exact candidate')
         chunks = []
         changed = sorted(n for n in self.plan['files'] if self.state['initial'][n] != self.state['expected'][n])
@@ -610,8 +730,12 @@ class AgentBridge:
             after = file_path(self.candidate_root, name).read_bytes()
             # Text proposals only. Reject binary/ambiguous patches rather than hiding bytes.
             require(b'\x00' not in before + after, 'binary diff is unsupported')
-            old = before.decode('utf-8').splitlines(keepends=True)
-            new = after.decode('utf-8').splitlines(keepends=True)
+            # Git patch lines are delimited only by LF, not by Unicode line separators or bare CR.
+            def lf_lines(data):
+                parts = data.decode('utf-8').split('\n')
+                return [line + '\n' for line in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+            old = lf_lines(before)
+            new = lf_lines(after)
             lines = difflib.unified_diff(old, new, fromfile=json.dumps('a/' + name, ensure_ascii=False) if self.state['initial'][name] else '/dev/null',
                                          tofile=json.dumps('b/' + name, ensure_ascii=False))
             chunks.append('diff --git ' + json.dumps('a/' + name, ensure_ascii=False) + ' ' + json.dumps('b/' + name, ensure_ascii=False) + '\n')
@@ -621,18 +745,54 @@ class AgentBridge:
                 chunks.append(line if line.endswith('\n') else line + '\n\\ No newline at end of file\n')
         path = directory / 'verified.patch'
         core.atomic_write(path, ''.join(chunks).encode('utf-8'), exclusive=True)
+        apply_umask = None
+        if changed:
+            git = shutil.which('git')
+            if not git:
+                return {'blocked_reason': 'Git is required to verify an applicable patch; install Git before starting a new run.'}
+            modes = self.state['candidate_modes']
+            def matches(mask):
+                return all(((0o777 if modes[name] & 0o100 else 0o666) & ~mask) == modes[name] for name in changed)
+            mask = next((n for n in [0o022, 0o077, *range(0o1000)] if matches(n)), None)
+            if mask is None:
+                return {'blocked_reason': 'No single Git apply umask reproduces the verified file permissions; split the change or use the reviewed apply workflow.'}
+            apply_umask = f'{mask:03o}'
+            check = directory / 'patch-check'
+            check.mkdir()
+            workspace = check / 'workspace'
+            workspace.mkdir()
+            prepare_directories(workspace, self.state['directory_modes'])
+            for name, value in self.state['initial'].items():
+                if value is not None:
+                    dest = workspace / name
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy(file_path(self.root, name), dest)
+            set_directory_modes(workspace, self.state['directory_modes'])
+            run = self.runner.run([git, 'apply', '--', str(path)], cwd=workspace, directory=check,
+                                  timeout=self.remaining(self.plan['check_timeout_seconds']),
+                                  cancelled=self.cancelled, launched=launched, umask=mask, isolate_git=True)
+            self.guard()
+            if run['exit_code'] != 0:
+                return {'blocked_reason': 'Generated patch did not apply in a disposable copy; inspect patch-check stderr.'}
+            expected_tree = {n: value for n, value in self.state['expected'].items() if value is not None}
+            if (tree_map(workspace) != expected_tree or file_modes(workspace, self.plan['files']) != modes or
+                    directory_modes(workspace, self.plan['files']) != self.state['directory_modes']):
+                return {'blocked_reason': 'Applied patch differs from verified candidate content, paths or permissions.'}
         self.fresh()
         return {'path': str(path.relative_to(self.root)), 'sha256': digest(path),
-                'candidate_sha256': self.state['final_candidate_sha256'], 'files': changed}
+                'candidate_sha256': self.state['final_candidate_sha256'], 'files': changed,
+                'apply_umask': apply_umask}
 
     def promote(self, directory, launched):
         self.guard()
         self.fresh()
         require(self.state['quality']['passed'] and self.state.get('final_verifier_thread') and
-                self.state['final_candidate_sha256'] == fingerprint(self.state['expected']),
+                self.state['final_candidate_sha256'] == fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes']),
                 'promotion requires checks and verifier for exact candidate')
         before = self.state['source_expected'].copy()
         after = self.state['expected'].copy()
+        before_modes = self.state['source_modes'].copy()
+        after_modes = self.state['candidate_modes'].copy()
         changes = sorted(n for n in before if before[n] != after[n])
         require(set(changes) <= set(self.plan['editable']), 'promotion outside editable scope')
         for name in changes:
@@ -642,8 +802,9 @@ class AgentBridge:
                 shutil.copyfile(file_path(self.root, name), target)
                 require(digest(target) == before[name], 'source changed during promotion preparation')
         journal = directory / 'promotion.json'
-        core.write_json(journal, {'before': before, 'after': after, 'changes': changes,
-                                 'candidate_sha256': fingerprint(after)}, exclusive=True)
+        core.write_json(journal, {'before': before, 'after': after, 'before_modes': before_modes,
+                                 'after_modes': after_modes, 'changes': changes,
+                                 'candidate_sha256': fingerprint(after, after_modes, self.state['directory_modes'])}, exclusive=True)
         self.state['promotion'] = {'path': str(journal.relative_to(self.root)), 'sha256': digest(journal)}
         self.save()  # Durable intent before the first project write.
         return self.finish_promotion()
@@ -656,13 +817,16 @@ class AgentBridge:
         require(digest(journal) == ref['sha256'], 'promotion journal changed')
         data = core.load_json(journal)
         require(data['after'] == self.state['expected'] and data['before'] == self.state['initial'] and
-                data['candidate_sha256'] == self.state['final_candidate_sha256'] == fingerprint(data['after']),
+                data['before_modes'] == self.state['initial_modes'] and data['after_modes'] == self.state['candidate_modes'] and
+                data['candidate_sha256'] == self.state['final_candidate_sha256'] == fingerprint(data['after'], data['after_modes'], self.state['directory_modes']),
                 'promotion does not match verified candidate')
         require(data['changes'] == sorted(n for n in data['before'] if data['before'][n] != data['after'][n]) and
                 set(data['changes']) <= set(self.plan['editable']), 'invalid promotion scope')
         current = file_map(self.root, self.plan['files'])
+        current_modes = file_modes(self.root, self.plan['files'])
         for name in current:
-            require(current[name] in (data['before'][name], data['after'][name]),
+            require((current[name], current_modes[name]) in ((data['before'][name], data['before_modes'][name]),
+                                                             (data['after'][name], data['after_modes'][name])),
                     'promotion conflict; preserve external edit: ' + name)
         for name in data['changes']:
             if data['before'][name] is not None:
@@ -671,21 +835,31 @@ class AgentBridge:
             self.guard()
             target = file_path(self.root, name, optional=True)
             now = digest(target) if target.exists() else None
-            if now == data['after'][name]:
+            mode = target.stat().st_mode & 0o777 if target.exists() else None
+            if (now, mode) == (data['after'][name], data['after_modes'][name]):
                 continue
-            require(now == data['before'][name], 'promotion conflict: ' + name)
+            require((now, mode) == (data['before'][name], data['before_modes'][name]), 'promotion conflict: ' + name)
             if data['before'][name] is not None:
                 require(digest(journal.parent / 'before' / name) == data['before'][name], 'promotion backup changed')
             content = file_path(self.candidate_root, name).read_bytes()
             require(hashlib.sha256(content).hexdigest() == data['after'][name], 'candidate changed during promotion')
-            mode = target.stat().st_mode & 0o777 if target.exists() else 0o600
             core.atomic_write(target, content, expected_sha256=data['before'][name],
-                              exclusive=data['before'][name] is None, mode=mode)
+                              exclusive=data['before'][name] is None, mode=data['after_modes'][name])
         require(file_map(self.root, self.plan['files']) == data['after'], 'promotion readback mismatch')
+        require(file_modes(self.root, self.plan['files']) == data['after_modes'], 'promotion permission readback mismatch')
         self.state['source_expected'] = data['after'].copy()
+        self.state['source_modes'] = data['after_modes'].copy()
         return {'before': data['before'], 'after': data['after'], 'promoted': data['changes']}
 
     def recover_promotion(self):
+        # A new explicit recovery gets a bounded local deadline; it never dispatches agents.
+        self.recovery_deadline = time.monotonic() + 60
+        try:
+            return self._recover_promotion()
+        finally:
+            self.recovery_deadline = None
+
+    def _recover_promotion(self):
         # Only a deterministic, already verified promotion can be finished. Never redispatch an agent.
         with core.project_lock(self.root):
             self.load()
@@ -774,7 +948,7 @@ class AgentBridge:
                         result = self.stage(f'verifier-{round_no}', lambda d,l: self.agent('verifier',d,l))
                         self.guard()
                         if result['response']['verdict'] == 'pass':
-                            self.state.update(phase='recheck', final_candidate_sha256=fingerprint(self.state['expected']),
+                            self.state.update(phase='recheck', final_candidate_sha256=fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes']),
                                               final_verifier_thread=result['thread_id'],
                                               requirement_results=result['response'].get('requirements', []))
                         else:
@@ -789,7 +963,10 @@ class AgentBridge:
                     elif phase == 'deliver':
                         result = self.stage('deliver', self.deliver_diff)
                         self.guard()
-                        self.state.update(status='completed_advisory', diff=result)
+                        if result.get('blocked_reason'):
+                            self.state.update(status='blocked', reason=result['blocked_reason'])
+                        else:
+                            self.state.update(status='completed_advisory', diff=result)
                     elif phase == 'promote':
                         self.stage('promote', self.promote)
                         self.guard()
@@ -851,7 +1028,7 @@ class AgentBridge:
             next_action = 'Review reason and evidence; a revised scope or budget requires a new explicitly authorized plan/run.'
         return {'run_id': self.run_id, 'state': state, 'phase': self.state['phase'],
                 'repair_rounds_used': self.state['round'], 'agent_calls': self.state['agent_calls'],
-                'reason': self.state.get('reason'), 'candidate_sha256': fingerprint(self.state['expected']),
+                'reason': self.state.get('reason'), 'candidate_sha256': fingerprint(self.state['expected'], self.state['candidate_modes'], self.state['directory_modes']),
                 'acceptance': 'not_accepted', 'classification': 'quality_checked_and_agent_reported',
                 'requirements': self.state.get('requirement_results', []),
                 'feedback': self.state.get('feedback', []), 'evidence_directory': self.relative,
@@ -895,7 +1072,9 @@ def preflight(root, plan_path):
     root = core.project_root(str(root))
     plan = validate_plan(core.load_json(file_path(root, plan_path)), plan_path)
     expected = file_map(root, plan['files'])
-    require(all(expected[n] is not None for n in plan['protected']), 'protected files must exist')
+    directory_modes(root, plan['files'])
+    require(all(expected[n] is not None for n in set(plan['files']) - set(plan['editable'])),
+            'declared noneditable files must exist')
     require(sum(file_path(root, n).stat().st_size for n,v in expected.items() if v is not None) <= MAX_BYTES,
             'declared workspace too large')
     errors, warnings = [], []
@@ -1013,7 +1192,7 @@ def _status_root_fd(root):
         raise
 
 
-def _status_bytes(root_fd, name, optional=False):
+def _status_bytes(root_fd, name, optional=False, *, include_mode=False):
     """Read beneath the pinned root; never reopen a checked pathname."""
     import stat
     parts = _status_parts(name)
@@ -1031,7 +1210,7 @@ def _status_bytes(root_fd, name, optional=False):
             handles.callback(os.close, fd)
         except FileNotFoundError:
             if optional:
-                return None
+                return (None, None) if include_mode else None
             raise
         info = os.fstat(fd)
         require(stat.S_ISREG(info.st_mode), 'regular file required: ' + name)
@@ -1045,7 +1224,23 @@ def _status_bytes(root_fd, name, optional=False):
             chunks.append(chunk)
             size += len(chunk)
         require(size <= MAX_LOG_BYTES, 'status evidence too large: ' + name)
-        return b''.join(chunks)
+        raw = b''.join(chunks)
+        return (raw, info.st_mode & 0o7777) if include_mode else raw
+
+
+def _status_directory_mode(root_fd, name):
+    import stat
+    if name == '.':
+        return os.fstat(root_fd).st_mode & 0o7777
+    parts = _status_parts(name)
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY | os.O_CLOEXEC
+    with contextlib.ExitStack() as handles:
+        fd = root_fd
+        for part in parts:
+            fd = os.open(part, flags, dir_fd=fd)
+            handles.callback(os.close, fd)
+            require(stat.S_ISDIR(os.fstat(fd).st_mode), 'directory required: ' + name)
+        return os.fstat(fd).st_mode & 0o7777
 
 
 def _status_json(raw):
@@ -1074,6 +1269,20 @@ def _status_source_map(value, plan):
     for name, checksum in value.items():
         require(_status_hash(checksum) or (checksum is None and name in plan['editable']),
                 'invalid source hash or missing noneditable file: ' + name)
+
+
+def _status_modes(value, hashes, plan):
+    require(isinstance(value, dict) and set(value) == set(plan['files']), 'mode map must match declared files')
+    for name, mode in value.items():
+        require((mode is None and hashes[name] is None) or
+                (type(mode) is int and 0 <= mode <= 0o777 and hashes[name] is not None),
+                'invalid recorded file mode: ' + name)
+
+
+def _status_directories(value, plan):
+    require(isinstance(value, dict) and set(value) == directory_names(plan['files']) and
+            all(type(mode) is int and 0 <= mode <= 0o777 for mode in value.values()),
+            'directory mode map must match declared file parents')
 
 
 def _status_process(value):
@@ -1147,14 +1356,25 @@ def read_status(root, run_id, plan_path):
             severity = kind
         issues.append(message)
 
-    def check_hash(name, expected):
+    def check_hash(name, expected, *, expected_mode=None, check_mode=False):
         try:
-            raw = _status_bytes(root_fd, name, optional=True)
+            raw, mode = _status_bytes(root_fd, name, optional=True, include_mode=True)
             actual = hashlib.sha256(raw).hexdigest() if raw is not None else None
             if actual != expected:
                 issue('stale', 'hash changed or file missing: ' + name)
+            if check_mode and mode != expected_mode:
+                issue('stale', 'file permissions changed: ' + name)
         except failures as exc:
             issue('unreadable', 'cannot inspect ' + name + ': ' + str(exc))
+
+    def check_directory(name, expected):
+        try:
+            if _status_directory_mode(root_fd, name) != expected:
+                issue('stale', 'directory permissions changed: ' + name)
+        except FileNotFoundError:
+            issue('stale', 'directory missing: ' + name)
+        except failures as exc:
+            issue('unreadable', 'cannot inspect directory ' + name + ': ' + str(exc))
 
     try:
         require(isinstance(run_id, str) and core.RUN_ID_RE.fullmatch(run_id), 'invalid bridge run ID')
@@ -1173,9 +1393,10 @@ def read_status(root, run_id, plan_path):
         require(raw_state is not None, 'run state is missing')
         state = _status_json(raw_state)
         require(isinstance(state, dict), 'run state must be an object')
-        require(type(state.get('schema_version')) is int and state['schema_version'] in (1, 2),
+        require(type(state.get('schema_version')) is int and state['schema_version'] in (1, 2, 3),
                 'unsupported state schema')
-        isolated = state['schema_version'] == 2
+        isolated = state['schema_version'] >= 2
+        mode_bound = state['schema_version'] == 3
         report['state_schema_version'] = state['schema_version']
         require(state.get('run_id') == run_id, 'state run identity mismatch')
         require(isinstance(state.get('status'), str) and state['status'] in
@@ -1223,22 +1444,37 @@ def read_status(root, run_id, plan_path):
             require(state['expected'][name] == state['initial'][name], 'protected source map changed: ' + name)
         if isolated:
             _status_source_map(state.get('source_expected'), plan)
+            if mode_bound:
+                _status_modes(state.get('initial_modes'), state['initial'], plan)
+                _status_modes(state.get('source_modes'), state['source_expected'], plan)
+                _status_modes(state.get('candidate_modes'), state['expected'], plan)
+                _status_directories(state.get('directory_modes'), plan)
             require(_status_hash(state.get('adapter_sha256')), 'invalid test adapter hash')
             require(isinstance(state.get('candidate_history'), list) and state['candidate_history'] and
                     all(_status_hash(x) for x in state['candidate_history']) and
-                    state['candidate_history'][0] == fingerprint(state['initial']) and
-                    state['candidate_history'][-1] == fingerprint(state['expected']), 'invalid candidate history')
+                    state['candidate_history'][0] == fingerprint(state['initial'], state['initial_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None) and
+                    state['candidate_history'][-1] == fingerprint(state['expected'], state['candidate_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None), 'invalid candidate history')
             for name in set(plan['files']) - set(plan['editable']):
                 require(state['expected'][name] == state['initial'][name] == state['source_expected'][name],
                         'noneditable source map changed: ' + name)
+                if mode_bound:
+                    require(state['candidate_modes'][name] == state['initial_modes'][name] == state['source_modes'][name],
+                            'noneditable mode map changed: ' + name)
             report['delivery'] = plan.get('delivery', 'apply')
-            report['candidate_sha256'] = fingerprint(state['expected'])
+            report['candidate_sha256'] = fingerprint(state['expected'], state['candidate_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None)
             for name, expected in state['source_expected'].items():
-                check_hash(name, expected)
+                check_hash(name, expected, expected_mode=state['source_modes'][name] if mode_bound else None, check_mode=mode_bound)
             for name, expected in state['expected'].items():
-                check_hash(relative + '/candidate/' + name, expected)
+                check_hash(relative + '/candidate/' + name, expected,
+                           expected_mode=state['candidate_modes'][name] if mode_bound else None, check_mode=mode_bound)
+            if mode_bound:
+                for name, expected in state['directory_modes'].items():
+                    check_directory(name, expected)
+                    check_directory(relative + '/candidate' + ('' if name == '.' else '/' + name), expected)
             if report['delivery'] == 'diff':
                 require(state['source_expected'] == state['initial'], 'diff run changed its source baseline')
+                if mode_bound:
+                    require(state['source_modes'] == state['initial_modes'], 'diff run changed its source permission baseline')
         else:
             for name, expected in state['expected'].items():
                 check_hash(name, expected)
@@ -1251,17 +1487,36 @@ def read_status(root, run_id, plan_path):
             require(isinstance(intake, dict) and intake.get('run_id') == run_id and
                     type(intake.get('schema_version')) is int and intake['schema_version'] == 1,
                     'invalid task intake')
+            require(set(intake) == {'schema_version', 'run_id', 'request_sha256', 'profile_path',
+                                    'profile_sha256', 'evidence'} and _status_hash(intake.get('request_sha256')),
+                    'invalid task intake fields')
             evidence = intake.get('evidence')
             required = {f'.proof/tasks/{run_id}/{name}' for name in ('request.txt', 'profile.json', 'plan.json')}
             require(isinstance(evidence, dict) and set(evidence) == required and
                     all(_status_hash(v) for v in evidence.values()), 'invalid intake evidence')
             require(evidence[plan_path] == state['plan_sha256'], 'intake plan differs from run')
+            require(evidence[f'.proof/tasks/{run_id}/request.txt'] == intake['request_sha256'],
+                    'intake request hash differs from saved request')
             for name, expected in evidence.items():
                 check_hash(name, expected)
+            saved_request = _status_bytes(root_fd, f'.proof/tasks/{run_id}/request.txt')
+            saved_profile = _status_json(_status_bytes(root_fd, f'.proof/tasks/{run_id}/profile.json'))
+            require(hashlib.sha256(saved_request).hexdigest() == intake['request_sha256'],
+                    'saved request differs from intake')
+            require(isinstance(saved_profile, dict) and set(saved_profile) == {'schema_version', 'plan'} and
+                    type(saved_profile['schema_version']) is int and saved_profile['schema_version'] == 1 and
+                    isinstance(saved_profile['plan'], dict), 'invalid frozen profile')
+            request = saved_request.decode('utf-8')
+            expected_plan = {**saved_profile['plan'], 'goal': request, 'delivery': 'diff',
+                             'requirements': [{'id': 'TASK', 'description': request}]}
+            require(plan == expected_plan, 'saved plan differs from request and profile')
             profile_name = intake.get('profile_path')
             relative_name(profile_name)
             require(_status_hash(intake.get('profile_sha256')), 'invalid intake profile hash')
             check_hash(profile_name, intake['profile_sha256'])
+            current_profile = _status_bytes(root_fd, profile_name, optional=True)
+            if current_profile is not None and hashlib.sha256(current_profile).hexdigest() == intake['profile_sha256']:
+                require(_status_json(current_profile) == saved_profile, 'current profile differs from frozen profile')
         steps = _status_parts(relative + '/steps')
         delivered = None
         stages = []
@@ -1309,15 +1564,33 @@ def read_status(root, run_id, plan_path):
                     report[summary_key] = summary
                 if stage == 'deliver':
                     delivery_result = data.get('result')
-                    require(isolated and isinstance(delivery_result, dict) and
-                            set(delivery_result) == {'path', 'sha256', 'candidate_sha256', 'files'} and
-                            delivery_result['path'] == '/'.join(stage_parts) + '/verified.patch' and
-                            _status_hash(delivery_result['sha256']) and
-                            delivery_result['sha256'] == evidence.get(delivery_result['path']) and
-                            delivery_result['candidate_sha256'] == fingerprint(state['expected']) and
-                            delivery_result['files'] == sorted(n for n in plan['files'] if state['initial'][n] != state['expected'][n]),
-                            'invalid delivered patch evidence')
-                    delivered = delivery_result
+                    if isinstance(delivery_result, dict) and set(delivery_result) == {'blocked_reason'}:
+                        require(report['state'] != 'completed_advisory' and isinstance(delivery_result['blocked_reason'], str) and
+                                delivery_result['blocked_reason'].strip(), 'invalid delivery blocker')
+                    else:
+                        fields = {'path', 'sha256', 'candidate_sha256', 'files'} | ({'apply_umask'} if mode_bound else set())
+                        require(isolated and isinstance(delivery_result, dict) and
+                                set(delivery_result) == fields and
+                                delivery_result['path'] == '/'.join(stage_parts) + '/verified.patch' and
+                                _status_hash(delivery_result['sha256']) and
+                                delivery_result['sha256'] == evidence.get(delivery_result['path']) and
+                                delivery_result['candidate_sha256'] == fingerprint(state['expected'], state['candidate_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None) and
+                                delivery_result['files'] == sorted(n for n in plan['files'] if state['initial'][n] != state['expected'][n]),
+                                'invalid delivered patch evidence')
+                        if mode_bound and delivery_result['files']:
+                            require(isinstance(delivery_result['apply_umask'], str) and
+                                    re.fullmatch(r'[0-7]{3}', delivery_result['apply_umask']), 'invalid patch application umask')
+                            for name, expected in state['expected'].items():
+                                applied = '/'.join(stage_parts) + '/patch-check/workspace/' + name
+                                if expected is not None:
+                                    require(evidence.get(applied) == expected, 'applied patch evidence differs from candidate')
+                                check_hash(applied, expected, expected_mode=state['candidate_modes'][name], check_mode=True)
+                            for name, expected in state['directory_modes'].items():
+                                applied_dir = '/'.join(stage_parts) + '/patch-check/workspace' + ('' if name == '.' else '/' + name)
+                                check_directory(applied_dir, expected)
+                        elif mode_bound:
+                            require(delivery_result['apply_umask'] is None, 'empty patch has unexpected umask')
+                        delivered = delivery_result
                 for name, expected in evidence.items():
                     check_hash(name, expected)
             except failures as exc:
@@ -1328,10 +1601,10 @@ def read_status(root, run_id, plan_path):
             if report['quality'] is None or report['verifier'] is None:
                 issue('unreadable', 'completed run lacks valid quality/verifier records')
             elif (not report['quality']['passed'] or report['verifier']['verdict'] != 'pass' or
-                  report['verifier']['candidate_sha256'] != fingerprint(state['expected'])):
+                  report['verifier']['candidate_sha256'] != fingerprint(state['expected'], state['candidate_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None)):
                 issue('stale', 'completed run disagrees with latest recorded evidence')
             if isolated:
-                require(state.get('final_candidate_sha256') == fingerprint(state['expected']) and
+                require(state.get('final_candidate_sha256') == fingerprint(state['expected'], state['candidate_modes'] if mode_bound else None, state['directory_modes'] if mode_bound else None) and
                         report['verifier'] and state.get('final_verifier_thread') == report['verifier']['thread_id'],
                         'completion differs from verified candidate')
                 require(state['records'] and state['phase'] == ('deliver' if report['delivery'] == 'diff' else 'promote'),
@@ -1343,6 +1616,10 @@ def read_status(root, run_id, plan_path):
                     report['diff'] = delivered
                 else:
                     require(state['source_expected'] == state['expected'], 'completed promotion differs from candidate')
+                    if mode_bound:
+                        require(state['source_modes'] == state['candidate_modes'], 'completed promotion mode differs from candidate')
+        if state['schema_version'] == 2:
+            issue('indeterminate', 'legacy isolated state does not record file permissions')
     except failures as exc:
         issue('unreadable', 'cannot inspect run: ' + str(exc))
     finally:

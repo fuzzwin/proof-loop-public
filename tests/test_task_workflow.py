@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -150,6 +151,7 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual(2, len(self.host.calls))
 
     def test_no_newline_and_space_filename_patch_is_applicable(self):
+        (self.root / 'new file.py').write_text('A = 0\n')
         self.scope['files'].append('new file.py')
         self.scope['editable'].append('new file.py')
         self.profile()
@@ -163,6 +165,58 @@ class TaskWorkflowTests(unittest.TestCase):
         subprocess.run(['git', 'apply', str(patch)], cwd=self.root, check=True)
         self.assertEqual(b'VALUE = 2', (self.root / 'app.py').read_bytes())
         self.assertEqual(b'A = 1', (self.root / 'new file.py').read_bytes())
+
+    def test_unicode_line_separator_and_bare_cr_patch_is_applicable(self):
+        (self.root / 'app.py').write_bytes('# alpha\u2028beta\nVALUE = 1\n'.encode())
+        (self.root / 'data.txt').write_bytes(b'alpha\rbeta\nvalue=1\n')
+        (self.root / 'check.py').write_text("from pathlib import Path\nfrom app import VALUE\nassert VALUE == 2 and Path('data.txt').read_bytes() == b'alpha\\rgamma\\nvalue=2\\n'\n")
+        self.scope['files'].append('data.txt')
+        self.scope['editable'].append('data.txt')
+        self.profile()
+        self.host = TaskHost(builder=lambda n: [{'path': 'app.py', 'content': '# alpha\u2028gamma\nVALUE = 2\n'},
+                                                {'path': 'data.txt', 'content': 'alpha\rgamma\nvalue=2\n'}])
+        result = self.run_fix()
+        self.assertEqual('verified_diff', result['outcome'], result)
+        patch = self.root / result['diff']['path']
+        subprocess.run(['git', 'apply', str(patch)], cwd=self.root, check=True,
+                       umask=int(result['diff']['apply_umask'], 8))
+        self.assertEqual('# alpha\u2028gamma\nVALUE = 2\n'.encode(), (self.root / 'app.py').read_bytes())
+        self.assertEqual(b'alpha\rgamma\nvalue=2\n', (self.root / 'data.txt').read_bytes())
+
+    def test_control_character_filename_is_rejected_without_dispatch(self):
+        self.scope['files'].append('bad\x01name.py')
+        self.scope['editable'].append('bad\x01name.py')
+        self.profile()
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('control characters', result['blocker']['reason'])
+        self.assertEqual([], self.host.calls)
+
+    def test_new_file_patch_applies_with_reported_umask_and_exact_permissions(self):
+        (self.root / 'check.py').write_text("from pathlib import Path\np=Path('new file.py')\nassert p.is_file() and p.stat().st_mode & 0o777 == 0o600\n")
+        self.scope['files'].append('new file.py')
+        self.scope['editable'].append('new file.py')
+        self.profile()
+        self.host = TaskHost(builder=lambda n: [{'path': 'new file.py', 'content': 'A = 1\n'}])
+        result = self.run_fix()
+        self.assertEqual('verified_diff', result['outcome'], result)
+        patch = self.root / result['diff']['path']
+        subprocess.run(['git', 'apply', str(patch)], cwd=self.root, check=True,
+                       umask=int(result['diff']['apply_umask'], 8))
+        self.assertEqual(0o600, (self.root / 'new file.py').stat().st_mode & 0o777)
+        subprocess.run([sys.executable, '-B', 'check.py'], cwd=self.root, check=True)
+
+    def test_incompatible_mixed_permissions_produce_precise_blocker(self):
+        self.scope['files'].append('new file.py')
+        self.scope['editable'].append('new file.py')
+        self.profile()
+        self.host = TaskHost(builder=lambda n: [{'path': 'app.py', 'content': 'VALUE = 2\n'},
+                                                {'path': 'new file.py', 'content': 'A = 1\n'}])
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('umask', result['blocker']['reason'])
+        self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())
+        self.assertFalse((self.root / 'new file.py').exists())
 
     def test_binary_source_cannot_be_reported_as_verified_text_diff(self):
         (self.root / 'app.py').write_bytes(b'VALUE = 1\n\x00')

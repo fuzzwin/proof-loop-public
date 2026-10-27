@@ -23,11 +23,13 @@ class AdapterTests(unittest.TestCase):
         directory = self.root / 'execution'
         directory.mkdir()
         report = directory / 'tests.json'
+        expected = directory / 'expected.json'
+        expected.write_text(json.dumps(ids))
         process = bridge.ProcessRunner().run(
-            [sys.executable, '-B', str(Path(bridge.__file__).with_name('unittest_adapter.py')), str(report), 'test_sample.py'],
+            [sys.executable, '-B', str(Path(bridge.__file__).with_name('unittest_adapter.py')), str(report), str(expected), 'test_sample.py'],
             cwd=self.workspace, directory=directory, timeout=5, cancelled=lambda: False, launched=lambda pid: None)
         result = json.loads(report.read_text())
-        return bridge.validate_test_report(result, {'expected_ids': ids}, process)
+        return bridge.validate_test_report(result, {'expected_ids': ids, 'tests': ['test_sample.py']}, process)
 
     def test_skipped_tests_never_pass(self):
         result = self.run_suite("import unittest\nclass T(unittest.TestCase):\n @unittest.skip('not exercised')\n def test_one(self): pass\n", ['test_sample.T.test_one'])
@@ -45,13 +47,38 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual('fail', result['tests'][0]['status'])
 
     def test_missing_expected_test_cannot_pass(self):
-        with self.assertRaisesRegex(ValueError, 'test IDs differ'):
-            self.run_suite('import unittest\nclass T(unittest.TestCase):\n def test_one(self): pass\n',
-                           ['test_sample.T.test_one', 'test_sample.T.test_missing'])
+        result = self.run_suite('import unittest\nclass T(unittest.TestCase):\n def test_one(self): pass\n',
+                                ['test_sample.T.test_one', 'test_sample.T.test_missing'])
+        self.assertFalse(result['passed'])
+        self.assertEqual(['test_sample.T.test_missing'], result['coverage']['missing'])
 
     def test_empty_suite_cannot_pass(self):
-        with self.assertRaisesRegex(ValueError, 'empty or incomplete'):
-            self.run_suite('import unittest\n', ['test_sample.T.test_missing'])
+        result = self.run_suite('import unittest\n', ['test_sample.T.test_missing'])
+        self.assertFalse(result['passed'])
+        self.assertEqual(['test_sample.T.test_missing'], result['coverage']['missing'])
+
+    def test_fixture_failure_cannot_pass(self):
+        source = ('import unittest\nclass T(unittest.TestCase):\n'
+                  ' @classmethod\n def tearDownClass(cls): raise RuntimeError("fixture broke")\n'
+                  ' def test_one(self): pass\n')
+        result = self.run_suite(source, ['test_sample.T.test_one'])
+        self.assertFalse(result['passed'])
+        self.assertEqual('error', result['fixture_errors'][0]['status'])
+
+    def test_class_level_skip_cannot_pass(self):
+        source = ('import unittest\nclass T(unittest.TestCase):\n'
+                  ' @classmethod\n def setUpClass(cls): raise unittest.SkipTest("unavailable")\n'
+                  ' def test_one(self): pass\n')
+        result = self.run_suite(source, ['test_sample.T.test_one'])
+        self.assertFalse(result['passed'])
+        self.assertEqual('skipped', result['fixture_errors'][0]['status'])
+        self.assertEqual(['test_sample.T.test_one'], result['coverage']['missing'])
+
+    def test_collection_error_is_recorded_as_failed_quality(self):
+        result = self.run_suite('import nonexistent_synthetic_dependency\n', ['test_sample.T.test_one'])
+        self.assertFalse(result['passed'])
+        self.assertIn('nonexistent_synthetic_dependency', result['collection_errors'][0]['error'])
+        self.assertEqual(['test_sample.T.test_one'], result['coverage']['missing'])
 
     def test_real_multifile_repair_requirement_evidence_and_replay(self):
         example = Path(bridge.__file__).parent / 'examples' / 'order-total'

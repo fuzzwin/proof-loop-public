@@ -4,7 +4,8 @@ This is the public Proof Loop source distribution, prepared from implementation 
 
 This source adds the optional [one-request workflow](ONE-REQUEST-WORKFLOW.md), isolated
 candidates, final check reruns, exact requirement/test coverage, and journaled promotion
-recovery. New native runs use state schema 2; `agent-status` can inspect schemas 1 and 2.
+recovery. New native runs use state schema 3; `agent-status` can inspect schemas 1, 2 and 3.
+Schema-2 observations are indeterminate because that draft format lacks permission evidence.
 Legacy runs are never silently migrated or resumed by the new execution host. The portable
 receipt schema and core CLI version remain unchanged. Pin the source commit for this feature.
 

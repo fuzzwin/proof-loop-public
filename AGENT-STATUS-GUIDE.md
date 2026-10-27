@@ -30,8 +30,10 @@ python3 proofloop agent-status \
 The run record is read from `$PROJECT/.proof/agent-runs/$RUN_ID/`. `--plan` names the existing plan under `$PROJECT`; for example, `plan.json` means `$PROJECT/plan.json`. The command prints one JSON object to standard output.
 
 For a one-request `fix`, use `--plan .proof/tasks/RUN_ID/plan.json`. The observer supports
-legacy schema-1 and new schema-2 state. For schema 2, it checks both project source and
-the isolated candidate, uses the final recheck as the latest quality evidence, and binds
+legacy schema-1, draft schema-2 and new schema-3 state. Schema 2 is indeterminate
+because it lacks permission evidence. For schema 3, status checks source and candidate content,
+file modes and declared parent-directory modes, uses the final recheck as the latest quality
+evidence, and binds
 the returned patch to its delivery record. The report format remains schema 1 and adds
 `state_schema_version`, `delivery`, `candidate_sha256`, and a validated `diff` when applicable.
 

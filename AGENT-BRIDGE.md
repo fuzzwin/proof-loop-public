@@ -107,8 +107,10 @@ from a role label. This first adapter has no per-role model selector.
 Only the bridge applies proposed changes. Repairs stay in a separate candidate
 directory until checks, fresh verification and final checks pass. It validates
 the entire proposal, saves prior contents and edits only explicit allowlisted
-files. After each stage it rechecks source, candidate, protected controls and
-all nested prior evidence. A repeated candidate stops as no progress.
+files. After each stage it rechecks source, candidate, declared file and parent-directory
+modes, protected controls and all nested prior evidence. A repeated candidate stops as no progress.
+Snapshots do not bind timestamps, ownership, ACLs, inode identity or undeclared files;
+checks that depend on them require a different verification approach.
 On POSIX hosts, declared permission bits are preserved when files are copied into
 quality/worker snapshots and when existing files are rewritten; newly created
 files use owner-only `0600` permissions. The executable-script regression is
@@ -164,7 +166,12 @@ promotion is journaled but is not a rollback transaction; interrupted source
 writes remain visible and require inspection. After inspecting the recorded
 processes and evidence, `agent-recover --root PROJECT --run-id RUN --plan PLAN
 --finish-promotion` can finish that exact verified promotion without new model
-calls. It rejects conflicting source edits and changed journals or backups.
+calls, using a separate bounded local recovery deadline even after the original run expires.
+It checks for conflicting source edits and changed journals or backups before writing.
+The comparison and file replacement are separate operations; an unrelated editor writing
+between them can be overwritten. Pause non-Proof Loop writers during promotion or recovery.
+The journal retains pre-run backups, but cannot capture every racing external write. The
+one-request `fix` path returns a patch and does not perform source promotion.
 
 Evidence lives under `.proof/agent-runs/RUN/`: frozen state, snapshots, command
 arguments, process references, raw events, final responses, prior file contents
@@ -197,7 +204,7 @@ python3 proofloop agent-status --root /path/to/project --run-id RUN --plan plan.
 
 The public wrapper provides this read-only command. `PLAN` must be a normalized
 project-relative path, without `./`, repeated separators or traversal. It reads
-existing schema-version-1 or schema-version-2 state and evidence without constructing an execution
+existing schema-version-1, schema-version-2 or schema-version-3 state and evidence without constructing an execution
 host, opening the coordinator database, taking a lock, starting a process or
 writing files or bytecode. Codex and credentials are unnecessary.
 
@@ -207,10 +214,11 @@ the existing deadline and clamped remaining time. Unknown values are `null`.
 Quality and verifier summaries come from the latest completed records, never
 from the state's cached quality field. A missing or malformed latest summary
 cannot imply an earlier successful result is current.
-New runs keep source and candidate hashes separately. Their completion requires
+New schema-3 runs keep source and candidate content and permission modes separately. Their completion requires
 the fresh verifier, final recheck, and delivery or promotion sequence; the diff
 must match its frozen delivery record. Managed task plans, intake evidence and
-current profile hashes are checked for one-request runs. Legacy state remains
+current profile hashes are checked for one-request runs. Schema-2 observations are
+indeterminate because that draft format lacks mode evidence. Legacy state remains
 readable but must use its original host version to resume execution.
 
 `freshness.state` is `current`, `stale`, `unreadable` or `indeterminate`, with

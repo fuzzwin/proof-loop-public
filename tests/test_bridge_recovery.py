@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -68,6 +69,17 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual('OTHER = 2\n', (self.root / 'other.py').read_text())
         self.assertEqual(result, recovered.advance())
         self.assertEqual(result, recovered.recover_promotion())
+        self.assertEqual(calls, len(self.host.calls))
+
+    def test_explicit_recovery_can_finish_after_original_deadline(self):
+        self.two_files()
+        loop = self.interrupt_promotion()
+        calls = len(self.host.calls)
+        loop.state['deadline'] = time.time() - 1
+        loop.save()
+        result = loop.recover_promotion()
+        self.assertEqual('completed_advisory', result['state'])
+        self.assertEqual('OTHER = 2\n', (self.root / 'other.py').read_text())
         self.assertEqual(calls, len(self.host.calls))
 
     def test_recovery_refuses_external_edit_and_retains_it(self):

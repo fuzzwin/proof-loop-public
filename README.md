@@ -28,7 +28,10 @@ It runs bounded repairs and fresh verification, then returns a locally verified 
 a precise blocker. Source files remain unchanged until you apply the patch. Follow the
 [one-request guide](ONE-REQUEST-WORKFLOW.md) for a disposable example and one-time setup.
 Native calls require an installed, signed-in Codex CLI on a compatible POSIX host and consume
-account usage. The core and synthetic smoke above work without Codex.
+account usage. Patch delivery also requires Git. The core and synthetic smoke above work without Codex.
+
+Checks run in snapshots of declared content and permission modes. They do not establish
+equivalence of timestamps, ownership, ACLs, inode identity, external services or undeclared files.
 
 ## Choose a layer
 

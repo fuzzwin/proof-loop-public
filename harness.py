@@ -300,10 +300,17 @@ def status_command(args):
 
 
 def recover_command(args):
-    require(args.finish_promotion, 'explicit --finish-promotion is required')
-    loop = HarnessBridge(args.root, args.run_id, args.task)
+    loop = None
     try:
-        print(json.dumps(loop.recover_promotion(), sort_keys=True, allow_nan=False))
-        return 0
+        require(args.finish_promotion, 'explicit --finish-promotion is required')
+        loop = HarnessBridge(args.root, args.run_id, args.task)
+        report = loop.recover_promotion()
+        code = 0
+    except (OSError, ValueError, TypeError, KeyError, OverflowError, RecursionError) as exc:
+        report = {'run_id': args.run_id, 'state': 'blocked', 'reason': str(exc), 'acceptance': 'not_accepted'}
+        code = 2
     finally:
-        loop.close()
+        if loop:
+            loop.close()
+    print(json.dumps(report, sort_keys=True, allow_nan=False))
+    return code

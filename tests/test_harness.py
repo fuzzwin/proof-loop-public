@@ -135,6 +135,20 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(0, replay.returncode, replay.stdout + replay.stderr)
         self.assertEqual(result, json.loads(replay.stdout))
 
+    def test_recovery_cli_reports_malformed_state_without_a_traceback(self):
+        loop = self.open()
+        loop.check()
+        loop.close()
+        state = json.loads(loop.state_path.read_text())
+        del state['plan_sha256']
+        loop.state_path.write_text(json.dumps(state))
+        result = subprocess.run([sys.executable, '-B', str(SOURCE / 'proofloop'), 'harness-recover',
+                                 '--root', str(self.root), '--run-id', 'trial', '--task', 'task.json',
+                                 '--finish-promotion'], capture_output=True, text=True)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual('blocked', json.loads(result.stdout)['state'])
+        self.assertNotIn('Traceback', result.stderr)
+
     def test_check_only_never_launches_host_and_can_resume(self):
         loop = self.open()
         with patch.object(harness.CommandHost, 'run', side_effect=AssertionError('host launched')):

@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -216,6 +218,52 @@ class PublicTaskStatusTests(unittest.TestCase):
             os.close(fd)
         subprocess.run(['/bin/chmod', '-N', str(directory)], check=True)
         self.assertEqual('current', self.inspect()['freshness']['state'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS extended ACL regression')
+    def test_acl_added_during_verification_blocks_completion(self):
+        root = self.root
+        class AclChangingHost(RecordedHost):
+            def run(self, role, *args, **kwargs):
+                result = super().run(role, *args, **kwargs)
+                if role == 'verifier':
+                    directory = root / '.proof/agent-runs/public'
+                    subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute,file_inherit,directory_inherit',
+                                    str(directory)], check=True)
+                return result
+        self.host = AclChangingHost()
+        result = tasks.execute(root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertNotIn('diff', result)
+        self.assertIn('has an ACL', result['blocker']['reason'])
+        state = json.loads((root / '.proof/agent-runs/public/state.json').read_text())
+        self.assertNotEqual('completed_advisory', state['status'])
+        self.assertIsNotNone(state['active'])
+        self.assertNotEqual('current', self.inspect()['freshness']['state'])
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'macOS extended ACL regression')
+    def test_acl_added_during_a_process_stops_it_at_next_poll(self):
+        self.scope['quality'] = [['{python}', '-B', '-c', 'import time; time.sleep(10)']]
+        self.profile.write_text(json.dumps({'schema_version': 1, 'plan': self.scope}))
+        directory = self.root / '.proof/agent-runs/public'
+        def change_acl():
+            limit = time.monotonic() + 5
+            stage = directory / 'steps/000-quality-0'
+            while time.monotonic() < limit and not list(stage.glob('launch-*.json')):
+                time.sleep(.01)
+            subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute,file_inherit,directory_inherit',
+                            str(directory)], check=True)
+        worker = threading.Thread(target=change_acl)
+        worker.start()
+        started = time.monotonic()
+        result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='public', host=self.host)
+        worker.join(timeout=6)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual('blocked', result['outcome'])
+        self.assertIn('has an ACL', result['blocker']['reason'])
+        self.assertLess(time.monotonic() - started, 8)
+        self.assertEqual([], self.host.calls)
+        cleanup = json.loads((directory / 'steps/000-quality-0/check-0/cleanup.json').read_text())
+        self.assertEqual('complete', cleanup['status'])
 
     def test_runtime_failure_with_active_work_requires_reconciliation(self):
         item = tasks.blocker('Codex process failed; inspect stderr', {'active_stage': {'stage': 'builder-1'}})

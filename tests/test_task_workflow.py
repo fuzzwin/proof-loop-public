@@ -64,6 +64,36 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual(before, bridge.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
+    def test_missing_run_state_never_starts_a_new_dispatch(self):
+        self.run_fix()
+        shutil.rmtree(self.root / '.proof/agent-runs/fix')
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        if coordinator.exists():
+            coordinator.unlink()
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual(2, len(self.host.calls))
+        self.assertFalse((self.root / '.proof/agent-runs/fix').exists())
+        self.assertFalse(coordinator.exists())
+
+    def test_missing_coordinator_does_not_get_recreated_for_existing_run(self):
+        self.run_fix()
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        coordinator.unlink()
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual(2, len(self.host.calls))
+        self.assertFalse(coordinator.exists())
+
+    def test_interrupted_intake_without_run_state_never_dispatches(self):
+        tasks.prepare(self.root, 'fix', 'Make VALUE equal 2.', 'proofloop-project.json')
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual([], self.host.calls)
+
     def test_initial_checks_passing_still_loops_for_verifier_findings(self):
         (self.root / 'check.py').write_text('assert True\n')
         self.host = TaskHost(verifier=lambda n: ['VALUE still wrong'] if n == 1 else [])

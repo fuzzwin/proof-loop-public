@@ -573,7 +573,24 @@ class AgentBridge:
             self.coordinator.close()
             self.coordinator = None
 
+    def _private_fresh(self):
+        root_fd = _status_root_fd(self.root)
+        try:
+            names = [self.relative]
+            parts = Path(self.plan_path).parts
+            if len(parts) == 4 and parts[:2] == ('.proof', 'tasks') and parts[3] == 'plan.json':
+                names.append('/'.join(parts[:3]))
+            for name in names:
+                mode, has_acl = _status_directory_mode(root_fd, name, include_acl=True)
+                require(mode & 0o077 == 0,
+                        'run evidence directory must be private; inspect existing permissions before changing them')
+                require(not has_acl,
+                        'run evidence directory has an ACL; inspect existing permissions before changing them')
+        finally:
+            os.close(root_fd)
+
     def save(self):
+        self._private_fresh()
         core.write_json(self.state_path, self.state)
 
     def load(self):
@@ -581,7 +598,8 @@ class AgentBridge:
         private_run_directory(self.root, self.relative)
         require(digest(plan_file(self.root, self.plan_path)) == self.plan_sha256,
                 'plan changed since parsing; reconstruct bridge before execution')
-        if self.state_path.exists():
+        existing_state = self.state_path.exists()
+        if existing_state:
             self.state = core.load_json(core.safe_project_file(self.root, self.relative + '/state.json'))
             require(self.state.get('schema_version') == 3, 'legacy bridge run: inspect with the original version; use a new run ID')
             require(self.state.get('run_id') == self.run_id, 'run identity mismatch; requested run ID collides with existing state')
@@ -614,6 +632,8 @@ class AgentBridge:
             require(directory_modes(self.candidate_root, self.plan['files']) == directories, 'candidate directory permissions changed during copy')
             self.save()
         db_rel = '.proof/coordinator.sqlite'
+        if existing_state:
+            require((self.root / db_rel).is_file(), 'coordinator evidence missing; inspect the prior run before continuing')
         db = core.safe_project_file(self.root, db_rel) if (self.root / db_rel).exists() else core.safe_write_path(self.root, db_rel)
         for suffix in ('', '-wal', '-shm'):
             require(not Path(str(db) + suffix).is_symlink(), 'coordinator database symlink rejected')
@@ -621,6 +641,7 @@ class AgentBridge:
         self.coordinator = Coordinator(db)
 
     def fresh(self, source=True):
+        self._private_fresh()
         require(not self.candidate_root.is_symlink(), 'candidate workspace symlink rejected')
         require(digest(plan_file(self.root, self.plan_path)) == self.state['plan_sha256'], 'frozen plan changed')
         if source:
@@ -646,6 +667,7 @@ class AgentBridge:
         return value
 
     def cancelled(self):
+        self._private_fresh()
         return self.cancel_path.exists()
 
     def guard(self):
@@ -662,6 +684,7 @@ class AgentBridge:
                                       run=run, task='work', version=task['version'], **args)
 
     def stage(self, name, action):
+        self.guard()
         number = len(self.state['records'])
         relative = f'{self.relative}/steps/{number:03d}-{name}'
         result_path = core.safe_write_path(self.root, relative + '/result.json')
@@ -676,6 +699,7 @@ class AgentBridge:
         dispatched = False
         def launched(pid):
             nonlocal dispatched
+            self._private_fresh()
             ref = f'local-process:{pid}:{uuid.uuid4()}'
             if not dispatched:
                 self.transition(run, 'dispatch', dispatch_ref=ref)
@@ -1128,6 +1152,7 @@ class AgentBridge:
             return self.status()
 
     def status(self):
+        self._private_fresh()
         totals = {'input_tokens': 0, 'cached_input_tokens': 0, 'output_tokens': 0}
         measured = 0
         models = []

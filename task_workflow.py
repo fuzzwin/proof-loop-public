@@ -110,6 +110,11 @@ def prepare(root, run_id, request, profile_name):
                     core.load_json(core.safe_project_file(root, relative + '/profile.json')) == profile and
                     (root / relative / 'request.txt').read_bytes() == request.encode(),
                     'task intake evidence changed: request/profile/plan disagree')
+            state_name = f'.proof/agent-runs/{run_id}/state.json'
+            try:
+                core.safe_project_file(root, state_name)
+            except (ValueError, OSError) as exc:
+                raise ValueError('saved run state missing or unsafe; inspect the prior intake before continuing') from exc
         else:
             # Each file is exclusive. Partial intake is retained, never silently replayed.
             evidence = {}
@@ -135,6 +140,8 @@ def blocker(reason, status=None):
         code, action = 'scope_changed', 'Review the changed request/profile and start a new authorized run; the old run is preserved.'
     elif 'run identity mismatch' in lower:
         code, action = 'run_id_collision', 'Inspect the existing run and choose a different run ID.'
+    elif 'saved run state missing' in lower or 'coordinator evidence missing' in lower:
+        code, action = 'missing_run_evidence', 'Inspect the preserved intake and prior process/evidence before starting any new run; no automatic redispatch is safe.'
     elif 'resource collision' in lower:
         code, action = 'prior_run_unresolved', 'Inspect the prior run holding the project resource and reconcile its recorded process/evidence before starting new work.'
     elif 'write lock' in lower:
@@ -198,6 +205,7 @@ def execute(root, request, *, run_id, profile_name='proofloop-project.json', hos
         patch = core.safe_project_file(root, result['diff']['path'])
         require(bridge.digest(patch) == result['diff']['sha256'] and
                 result['diff']['candidate_sha256'] == result['candidate_sha256'], 'delivered diff hash/candidate mismatch')
+        loop.fresh()
         return {'outcome': 'verified_diff', 'run_id': run_id, **metadata, 'run': result,
                 'diff': result['diff'], 'acceptance': 'not_accepted',
                 'verification': 'local checks and fresh agent review of candidate content and declared file/directory modes; other filesystem metadata excluded',

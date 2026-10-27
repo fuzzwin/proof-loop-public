@@ -179,7 +179,8 @@ and nested hashes. These logs can contain task data; they are local, not
 published automatically. New run directories are owner-only; on macOS their inherited
 extended ACLs are removed, while Linux handling checks POSIX ACL attributes. Existing
 run directories with group/other access or ACLs are refused without silently changing them.
-Other ACL models and network filesystems require separate host verification.
+Other ACL models and network filesystems require separate host verification. Privacy is
+rechecked at stage boundaries, state writes and process polls; a changed boundary stops work.
 Status 0 means a checkpoint or completed advisory run;
 blocked, cancelled and uncertain work return non-success.
 

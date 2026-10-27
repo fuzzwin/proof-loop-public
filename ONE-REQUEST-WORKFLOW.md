@@ -94,7 +94,9 @@ cannot reproduce all changed file modes with a single umask, delivery stops with
 Repeat `fix` with the exact request, run ID and profile to retrieve a completed result without
 new agent calls or file changes. Changed requests, source, profiles or evidence invalidate
 reuse. An omitted run ID starts a fresh task. Partial intake and unfinished stages are retained
-for inspection. Never clear locks or active state merely to force a retry.
+for inspection. If saved run state or coordinator evidence is missing, replay blocks instead
+of dispatching again; inspect the preserved intake and processes before starting new work.
+Never clear locks or active state merely to force a retry.
 
 The older `agent-run` entry point still supports applying a verified candidate, with explicit
 journal recovery through `agent-recover --finish-promotion`. See [the bridge guide](AGENT-BRIDGE.md).

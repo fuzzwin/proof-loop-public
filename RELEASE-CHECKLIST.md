@@ -1,15 +1,13 @@
-# Public source release checklist
+# Source release checklist
 
-- [x] Match implementation, existing tests, schemas and synthetic fixtures to current implemented source baseline.
-- [x] Retain MIT license and copyright attribution.
-- [x] Remove historical project case studies and use synthetic scenarios only.
-- [x] Separate advisory instructions, executed core and optional experimental host integrations.
-- [x] Run 149 regression tests, 20 protected status acceptance tests and disposable clean-start smoke on the recorded macOS runtime.
-- [x] Check local documentation links and targeted privacy/credential patterns.
-- [x] Complete independent skeptical review and tracked-source archive inspection; extracted smoke passes.
-- [ ] Approve creating the separate public repository.
-- [ ] Publish only the reviewed tracked-source export, with fresh history.
-- [ ] Verify remote visibility, tree hashes and a fresh public clone.
-- [ ] Open a draft PR for review; do not merge without approval.
+Use these checks when preparing a source release:
 
-Local worktree metadata, verification logs, private history and operational evidence must never be copied to the public repository or archive. This checklist records preparation only; no publication or global host activation has happened.
+- Review the exact files, license, examples, and documentation intended for publication.
+- Exclude private project data, credentials, runtime state, and unrelated history.
+- Run the regression and protected acceptance suites and the disposable clean-start smoke.
+- Check documentation links and scan the package for accidental disclosures.
+- Obtain independent review appropriate to the change, and record its scope and limitations.
+- Confirm the remote tree matches the reviewed package and test a fresh public checkout.
+- Record the actual runtime, results, and any remaining platform limitations.
+
+The toolkit does not install integrations globally or establish production acceptance.

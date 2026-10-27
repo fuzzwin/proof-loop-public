@@ -433,6 +433,15 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         with self.assertRaisesRegex(ValueError, 'invalid typed-check summary'):
             harness.quality_summary(old, harness.compile_task(self.task, 'task.json', allow_legacy=True))
 
+    def test_legacy_paths_are_allowed_only_for_read_only_contract_inspection(self):
+        task = copy.deepcopy(self.task)
+        for key in ('files', 'protected', 'requirements'):
+            task[key] = ['requirements\tlegacy.md' if name == 'requirements.md' else name for name in task[key]]
+        with self.assertRaisesRegex(ValueError, 'control characters'):
+            harness.compile_task(task, 'task.json')
+        plan = harness.compile_task(task, 'task.json', allow_legacy=True)
+        self.assertIn('requirements\tlegacy.md', plan['protected'])
+
     def test_status_rejects_unknown_or_inconsistent_result(self):
         plan = harness.compile_task(self.task, 'task.json')
         loop = self.open()

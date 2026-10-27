@@ -21,7 +21,7 @@ def compile_task(task, path, *, allow_legacy=False):
             'explicit repair, call and time limits required')
     plan = {k: task[k] for k in ('goal', 'files', 'editable', 'protected', 'specialists')}
     plan.update(task['limits'], quality=[['typed-checks']])
-    bridge.validate_plan(plan, path)
+    bridge.validate_plan(plan, path, legacy_paths=allow_legacy)
     requirements = task['requirements']
     checks.strings(requirements, 'requirements')
     require(len(set(requirements)) == len(requirements) and set(requirements) <= set(plan['protected']),

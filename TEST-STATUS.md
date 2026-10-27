@@ -1,5 +1,23 @@
 # Test status
 
+## General harness candidate — 2026-10-28
+
+Checked on macOS arm64 with CPython 3.14.3: 174 regression tests passed
+(the preserved 149 plus 25 harness tests), all 20 unchanged protected status
+acceptance tests passed, and both the original and multi-domain smoke checks
+passed. New tests exercise actual local subprocesses with explicitly synthetic
+agent fixtures, conditional specialist/builder/verifier flows, bounded repairs
+and calls, false-pass controls, skips/empty suites, malformed protocols, partial
+coverage, changed evidence, timeouts, report limits and read-only status.
+
+Run `python3 -B tools/harness_smoke.py` for disposable software, JSON-data and
+document checks without a model. See [the harness guide](HARNESS.md) for contracts
+and extension protocols. These candidate checks are author-run, with independent
+review pending. They do not qualify new live-model/provider behavior or additional
+platforms. The portable receipt acceptance boundary is unchanged.
+
+## Published baseline checks
+
 Fresh local verification on 2026-10-26: macOS (Darwin 23.5.0), arm64, CPython 3.14.3. Implementation, existing tests and schemas match source baseline `85e4f51963d346ec0703123e5545a2e81c4f7e26`. The distribution adds first-run documentation and a disposable smoke script; it carries no historical receipts.
 
 - Regression suite: 149 tests passed, no skips reported (29.889 seconds).

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "goal": "Produce a schema_version 1 report from source.json: count 2, ordered IDs [a,b]. Preserve the source.",
+  "files": [
+    "source.json",
+    "report.json",
+    "requirements.md"
+  ],
+  "editable": [
+    "report.json"
+  ],
+  "protected": [
+    "source.json",
+    "requirements.md"
+  ],
+  "requirements": [
+    "requirements.md"
+  ],
+  "checks": [
+    {
+      "id": "format",
+      "purpose": "verification",
+      "criterion": "Report has the agreed format version.",
+      "adapter": "json-equals",
+      "path": "report.json",
+      "assertions": [
+        {
+          "pointer": "/schema_version",
+          "equals": 1
+        }
+      ]
+    },
+    {
+      "id": "source-agreement",
+      "purpose": "validation",
+      "criterion": "Report matches the frozen source IDs and count.",
+      "adapter": "json-equals",
+      "path": "report.json",
+      "assertions": [
+        {
+          "pointer": "/count",
+          "equals": 2
+        },
+        {
+          "pointer": "/ids",
+          "equals": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    }
+  ],
+  "specialists": [
+    {
+      "id": "diagnostic",
+      "instructions": "Diagnose the failing criteria using the protected requirements.",
+      "when": [
+        "quality_failure",
+        "verification_failure"
+      ]
+    }
+  ],
+  "limits": {
+    "max_repairs": 2,
+    "max_agent_calls": 6,
+    "agent_timeout_seconds": 180,
+    "check_timeout_seconds": 60,
+    "max_run_seconds": 900
+  },
+  "host": {
+    "kind": "codex"
+  }
+}

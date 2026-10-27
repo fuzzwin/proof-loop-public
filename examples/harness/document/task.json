@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "goal": "The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.",
+  "files": [
+    "report.md",
+    "requirements.md"
+  ],
+  "editable": [
+    "report.md"
+  ],
+  "protected": [
+    "requirements.md"
+  ],
+  "requirements": [
+    "requirements.md"
+  ],
+  "checks": [
+    {
+      "id": "structure",
+      "purpose": "verification",
+      "criterion": "The document has the agreed heading.",
+      "adapter": "text",
+      "path": "report.md",
+      "contains": [
+        "# Release checklist"
+      ],
+      "excludes": []
+    },
+    {
+      "id": "scope-and-evidence",
+      "purpose": "validation",
+      "criterion": "Required scope/evidence text is present and prohibited claims are absent.",
+      "adapter": "text",
+      "path": "report.md",
+      "contains": [
+        "Scope: local files",
+        "Evidence: recorded checks"
+      ],
+      "excludes": [
+        "TBD",
+        "guaranteed correctness"
+      ]
+    }
+  ],
+  "specialists": [
+    {
+      "id": "diagnostic",
+      "instructions": "Diagnose the failing criteria using the protected requirements.",
+      "when": [
+        "quality_failure",
+        "verification_failure"
+      ]
+    }
+  ],
+  "limits": {
+    "max_repairs": 2,
+    "max_agent_calls": 6,
+    "agent_timeout_seconds": 180,
+    "check_timeout_seconds": 60,
+    "max_run_seconds": 900
+  },
+  "host": {
+    "kind": "codex"
+  }
+}

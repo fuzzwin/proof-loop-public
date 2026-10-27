@@ -43,7 +43,8 @@ python3 proofloop harness-run --root /path/to/project --run-id trial --task task
 python3 proofloop harness-cancel --root /path/to/project --run-id trial
 ```
 
-The loop runs every check on an isolated file snapshot. Failed criteria route to
+The loop runs each check on its own file snapshot and checks it for changes before
+the next check starts. Failed criteria route to
 configured specialists and then a builder. Only allowlisted proposed UTF-8 file
 contents are applied. All criteria run again, followed by a fresh verifier session
 on the exact candidate. Verifier findings can start another repair within the
@@ -91,7 +92,7 @@ adapter. Builders cannot enlarge these limits or change criteria mid-run.
 | --- | --- | --- |
 | `json-equals` | `path`, `assertions` containing `pointer` and `equals` | Exact typed JSON values at RFC 6901 pointers; booleans and numbers differ |
 | `text` | `path`, `contains`, `excludes` | Required literal text is present and forbidden literal text is absent |
-| `python-unittest` | `start_dir`, `pattern` | At least one observed test, no failures, errors, skips, expected failures or unexpected successes, and a matching process exit |
+| `python-unittest` | `start_dir`, `pattern`, frozen `test_ids` | Every declared matching Python test module runs; executed test IDs exactly match the approved list; no failures, errors, skips, expected failures or unexpected successes |
 | `command-json` | Explicit `argv`, protected `controls`, expected `coverage` | The configured trusted tool's scoped result and coverage agree with the contract and exit |
 
 Text assertions cannot both be empty. JSON arrays use zero-based indices.
@@ -102,6 +103,17 @@ Missing or malformed candidate artifacts fail their checks. Protected Python
 tests run in a fresh process with an observed structured test summary. Commands
 run without a shell added by the harness. `{python}` expands to the current
 interpreter and `{workspace}` to the stage snapshot.
+
+The unittest adapter compares executed module names against every declared
+matching `.py` file under the test directory. It fails if discovery omits a
+declared module, even when another test passes. Nested directories must be
+discoverable by unittest, normally with protected `__init__.py` files. A module
+that intentionally contributes no test fails the coverage rule. The `test_ids`
+list freezes the complete set of agreed unittest IDs, such as
+`test_add.Addition.test_positive`; missing, unexpected or duplicate executions
+fail, including tests omitted by a `load_tests` hook. Review the IDs and tests
+before approving the task. This check does not prove that the approved list
+covers every intended scenario.
 
 An external check receives one JSON request on stdin with `schema_version`,
 `check_id`, `criterion`, `purpose` and the expected `coverage`. It must print only one JSON result to stdout;
@@ -163,6 +175,12 @@ workflow or processes. It checks the task, source files, completed stages and
 nested evidence; changing state or active work makes freshness indeterminate.
 Stale outcomes remain historical. Exit 0 means the inspection is stable and
 current, even for a blocked run; exit 2 means stale, indeterminate or unreadable.
+After a builder changes the candidate, checks from the prior candidate are marked
+historical and current verification/validation are unset until checks run again.
+Pre-repair draft runs lack candidate binding and module/case coverage: status can
+show their recorded checks as unbound historical evidence, but they cannot resume
+as current work. Add the agreed `test_ids` to unittest checks and start a new run
+ID with the repaired harness; retain the old contract to inspect old evidence.
 
 Snapshots and protected files detect ordinary unauthorized changes. They are not
 an OS sandbox, authenticated proof, malicious-code containment or independent

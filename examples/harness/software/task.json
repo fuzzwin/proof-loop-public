@@ -25,7 +25,10 @@
       "criterion": "Implementation passes the protected unit tests without skips.",
       "adapter": "python-unittest",
       "start_dir": "tests",
-      "pattern": "test_*.py"
+      "pattern": "test_*.py",
+      "test_ids": [
+        "test_add.Addition.test_positive"
+      ]
     },
     {
       "id": "use-case",
@@ -33,7 +36,11 @@
       "criterion": "The agreed negative and zero use cases pass without skips.",
       "adapter": "python-unittest",
       "start_dir": "acceptance",
-      "pattern": "test_*.py"
+      "pattern": "test_*.py",
+      "test_ids": [
+        "test_use_case.AgreedCases.test_negative",
+        "test_use_case.AgreedCases.test_zero"
+      ]
     }
   ],
   "specialists": [

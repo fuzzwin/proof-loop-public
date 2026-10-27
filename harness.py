@@ -13,7 +13,7 @@ LIMITS = {'max_repairs', 'max_agent_calls', 'agent_timeout_seconds',
           'check_timeout_seconds', 'max_run_seconds'}
 
 
-def compile_task(task, path):
+def compile_task(task, path, *, allow_legacy=False):
     """Validate without reading files, creating state or resolving a host."""
     require(isinstance(task, dict) and set(task) == TASK_FIELDS, 'invalid task contract fields')
     require(type(task['schema_version']) is int and task['schema_version'] == 1,
@@ -27,7 +27,7 @@ def compile_task(task, path):
     checks.strings(requirements, 'requirements')
     require(len(set(requirements)) == len(requirements) and set(requirements) <= set(plan['protected']),
             'requirements must name unique protected files')
-    checks.validate_checks(task['checks'], plan['files'], plan['protected'])
+    checks.validate_checks(task['checks'], plan['files'], plan['protected'], allow_legacy=allow_legacy)
     host = task['host']
     require(isinstance(host, dict), 'host must be an explicit object')
     if host.get('kind') == 'codex':
@@ -77,8 +77,15 @@ class HarnessBridge(bridge.AgentBridge):
     def __init__(self, root, run_id, task_path, host=None, runner=None):
         super().__init__(root, run_id, task_path, host=host, runner=runner,
                          plan_validator=compile_task, plan_loader=bridge._status_json)
+        # Match the read-only observer's source-map contract before creating a run.
+        bridge._status_source_map(bridge.file_map(self.root, self.plan['files']), self.plan)
         if self.host is None and self.plan['host']['kind'] == 'command':
             self.host = CommandHost(self.plan['host']['argv'], self.runner)
+
+    def load(self):
+        super().load()
+        bridge._status_source_map(self.state.get('initial'), self.plan)
+        bridge._status_source_map(self.state.get('expected'), self.plan)
 
     def fresh(self):
         super().fresh()
@@ -90,15 +97,17 @@ class HarnessBridge(bridge.AgentBridge):
                 latest = quality_summary(value['result'], self.plan)
         if latest is not None:
             require(checks.exact(latest, self.state.get('quality')), 'saved check summary differs from stage evidence')
+        else:
+            require(self.state.get('quality') is None, 'saved check summary has no stage evidence')
 
     def quality(self, directory, launched):
-        workspace = self.snapshot(directory)
-        before = snapshot_state(workspace)
-        result = checks.run_checks(workspace, self.plan['checks'], directory, self.runner,
+        result = checks.run_checks(self.plan['checks'], self.plan['files'], directory, self.runner,
                                   lambda: self.remaining(self.plan['check_timeout_seconds']),
-                                  self.cancelled, launched)
+                                  self.cancelled, launched, snapshot=self.snapshot,
+                                  snapshot_state=snapshot_state, fresh=self.fresh)
         self.guard()
-        require(snapshot_state(workspace) == before, 'check changed the frozen snapshot')
+        result['candidate'] = self.state['expected'].copy()
+        result['candidate_sha256'] = bridge.fingerprint(result['candidate'])
         return result
 
     def check(self):
@@ -130,15 +139,30 @@ class HarnessBridge(bridge.AgentBridge):
 
     def status(self):
         result = super().status()
-        quality = self.state.get('quality', {})
-        return {**result, 'verification': quality.get('verification'), 'validation': quality.get('validation'),
-                'checks': quality.get('checks', []), 'requirements': self.plan['requirements'],
+        quality = self.state.get('quality')
+        require(quality is None or isinstance(quality, dict), 'invalid saved check summary')
+        quality = quality or {}
+        current = bool(quality) and quality.get('candidate_sha256') == result['candidate_sha256']
+        return {**result, 'verification': quality.get('verification') if current else None,
+                'validation': quality.get('validation') if current else None,
+                'checks': quality.get('checks', []) if current else [],
+                'quality_historical': bool(quality) and not current,
+                'historical_quality': quality if quality and not current else None,
+                'requirements': self.plan['requirements'],
                 'classification': 'scoped_checks_and_agent_reports_not_production_acceptance'}
 
 
-def quality_summary(result, plan):
-    require(isinstance(result, dict) and set(result) == {'passed', 'checks', 'verification', 'validation'},
+def quality_summary(result, plan, *, allow_unbound=False):
+    base = {'passed', 'checks', 'verification', 'validation'}
+    require(isinstance(result, dict), 'invalid typed-check summary')
+    unbound = set(result) == base
+    require(set(result) == base | {'candidate', 'candidate_sha256'} or (allow_unbound and unbound),
             'invalid typed-check summary')
+    if not unbound:
+        bridge._status_source_map(result['candidate'], plan)
+        require(bridge._status_hash(result['candidate_sha256']) and
+                result['candidate_sha256'] == bridge.fingerprint(result['candidate']),
+                'check candidate does not match its recorded source map')
     outcomes = result['checks']
     require(isinstance(outcomes, list) and len(outcomes) == len(plan['checks']), 'check coverage mismatch')
     for expected, actual in zip(plan['checks'], outcomes):
@@ -162,12 +186,15 @@ def quality_summary(result, plan):
             passed = observed['state'] == 'pass'
             require((process['exit_code'] == 0) == passed, 'external result/exit disagree')
         elif kind == 'python-unittest':
-            counts = observed.get('counts')
-            require(isinstance(counts, dict) and set(counts) ==
-                    {'tests', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'} and
-                    all(type(v) is int and v >= 0 for v in counts.values()), 'invalid recorded test counts')
-            passed = counts['tests'] > 0 and all(v == 0 for k, v in counts.items() if k != 'tests')
-            require(process['exit_code'] == (0 if passed else 1), 'test counts/exit disagree')
+            if unbound and set(observed) == {'counts', 'output'}:
+                counts = observed['counts']
+                require(isinstance(observed['output'], str) and isinstance(counts, dict) and set(counts) ==
+                        {'tests', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'} and
+                        all(type(v) is int and v >= 0 for v in counts.values()), 'invalid historical unittest counts')
+                passed = counts['tests'] > 0 and all(v == 0 for k, v in counts.items() if k != 'tests')
+                require(process['exit_code'] == (0 if passed else 1), 'historical test counts/exit disagree')
+            else:
+                passed = checks.validate_unittest(observed, expected, plan['files'], process['exit_code'])
         elif set(observed) == {'error'}:
             require(isinstance(observed['error'], str), 'invalid recorded check error')
             passed = False
@@ -200,21 +227,30 @@ def quality_summary(result, plan):
             'overall check verdict disagrees')
     summary = checks.summarize(outcomes)
     require(all(checks.exact(result[p], summary[p]) for p in summary), 'purpose summary disagrees')
-    return result
+    return {**result, 'candidate': None, 'candidate_sha256': None, 'unbound': True} if unbound else result
 
 
 def read_status(root, run_id, task_path):
     plan = {}
     def validator(value, path):
-        plan.update(compile_task(value, path))
+        plan.update(compile_task(value, path, allow_legacy=True))
         return plan
     def summary(stage, value):
         if stage.startswith('quality-'):
-            return 'quality', quality_summary(value, plan)
+            return 'quality', quality_summary(value, plan, allow_unbound=True)
         return bridge._status_summary(stage, value)
-    result = bridge.read_status(root, run_id, task_path, plan_validator=validator, summary_reader=summary)
+    result = bridge.read_status(root, run_id, task_path, plan_validator=validator,
+                                summary_reader=summary, include_candidate=True)
     quality = result.get('quality') or {}
-    return {**result, 'verification': quality.get('verification'), 'validation': quality.get('validation'),
+    old_quality = bool(quality) and (result['historical'] or
+                                     quality.get('candidate_sha256') != result.get('candidate_sha256'))
+    if old_quality and result['state'] == 'completed_advisory' and result['freshness']['state'] == 'current':
+        result['freshness']['state'] = 'stale'
+        result['freshness']['issues'].append('completed run has checks for a different candidate')
+        result['historical'] = True
+    return {**result, 'verification': quality.get('verification') if quality and not old_quality else None,
+            'validation': quality.get('validation') if quality and not old_quality else None,
+            'quality_historical': old_quality,
             'classification': 'hash_consistency_only_not_authenticated_evidence'}
 
 

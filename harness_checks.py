@@ -11,7 +11,7 @@ from coordinator import require
 ADAPTERS = {
     'json-equals': 'Exact typed JSON assertions using JSON Pointers.',
     'text': 'Required and forbidden literal text in a UTF-8 artifact.',
-    'python-unittest': 'Observed unittest counts; empty, skipped and incomplete suites fail.',
+    'python-unittest': 'Frozen test IDs and module coverage; missing, extra, skipped and failed cases fail.',
     'command-json': 'External tool adapter with explicit argv and a strict result protocol.',
 }
 MAX_CHECK_REPORT_BYTES = 256 * 1024
@@ -29,7 +29,16 @@ def argv(value):
     require(len(value) <= 128, 'too many command arguments')
 
 
-def validate_checks(checks, files, protected):
+def expected_unittest_modules(check, files):
+    prefix = check['start_dir'] + '/'
+    matches = [p[len(prefix):] for p in files if p.startswith(prefix) and p.endswith('.py') and
+               fnmatch.fnmatchcase(Path(p).name, check['pattern'])]
+    modules = [p[:-3].replace('/', '.') for p in matches]
+    require(modules and len(modules) == len(set(modules)), 'declared unittest modules must be unique')
+    return sorted(modules)
+
+
+def validate_checks(checks, files, protected, *, allow_legacy=False):
     require(isinstance(checks, list) and 1 <= len(checks) <= 16, '1..16 checks required')
     ids = set()
     common = {'id', 'purpose', 'criterion', 'adapter'}
@@ -46,7 +55,12 @@ def validate_checks(checks, files, protected):
         require(isinstance(kind, str) and kind in ADAPTERS, 'unknown check adapter')
         fields = {'json-equals': {'path', 'assertions'}, 'text': {'path', 'contains', 'excludes'},
                   'python-unittest': {'start_dir', 'pattern'}, 'command-json': {'argv', 'controls', 'coverage'}}[kind]
-        require(set(check) == common | fields, 'invalid fields for check ' + name)
+        legal = common | fields
+        if kind == 'python-unittest':
+            legal = legal | {'test_ids'}
+            if allow_legacy and set(check) == legal - {'test_ids'}:
+                legal = legal - {'test_ids'}
+        require(set(check) == legal, 'invalid fields for check ' + name)
         if kind in ('json-equals', 'text'):
             bridge.relative_name(check['path'])
             require(check['path'] in files, 'check artifact must be a declared file')
@@ -71,8 +85,12 @@ def validate_checks(checks, files, protected):
             test_files = [p for p in files if p.startswith(directory + '/')]
             require(test_files and all(p in protected for p in test_files),
                     'all declared test-directory files must be protected')
-            require(any(fnmatch.fnmatchcase(Path(p).name, pattern) for p in test_files),
-                    'test pattern matches no declared protected tests')
+            expected_unittest_modules(check, test_files)
+            if 'test_ids' in check:
+                test_ids = check['test_ids']
+                require(isinstance(test_ids, list) and 1 <= len(test_ids) <= 2000 and
+                        all(isinstance(x, str) and 0 < len(x) <= 512 and '\x00' not in x for x in test_ids) and
+                        len(set(test_ids)) == len(test_ids), 'unique expected unittest test_ids required')
         else:
             argv(check['argv'])
             strings(check['controls'], 'external check controls')
@@ -129,16 +147,69 @@ UNITTEST_DRIVER = '''import contextlib,io,json,os,sys,unittest
 config=json.load(sys.stdin)
 sys.path.insert(0,os.getcwd())
 stream=io.StringIO()
+class RecordingResult(unittest.TextTestResult):
+    def startTest(self,test):
+        observed.add(type(test).__module__)
+        observed_ids.append(test.id())
+        return super().startTest(test)
+observed=set()
+observed_ids=[]
 with contextlib.redirect_stdout(stream),contextlib.redirect_stderr(stream):
     suite=unittest.defaultTestLoader.discover(config['start_dir'],pattern=config['pattern'])
-    result=unittest.TextTestRunner(stream=stream,verbosity=2).run(suite)
+    result=unittest.TextTestRunner(stream=stream,verbosity=2,resultclass=RecordingResult).run(suite)
 counts={'tests':result.testsRun,'failures':len(result.failures),'errors':len(result.errors),
         'skipped':len(result.skipped),'expected_failures':len(result.expectedFailures),
         'unexpected_successes':len(result.unexpectedSuccesses)}
-passed=counts['tests']>0 and all(v==0 for k,v in counts.items() if k!='tests')
-print(json.dumps({'counts':counts,'output':stream.getvalue()[-20000:]}))
+expected=config['expected_modules']
+missing=[name for name in expected if name not in observed]
+expected_ids=sorted(config['test_ids'])
+observed_ids=sorted(observed_ids)
+missing_ids=[name for name in expected_ids if name not in observed_ids]
+unexpected_ids=[name for name in sorted(set(observed_ids)) if name not in expected_ids]
+passed=(counts['tests']>0 and all(v==0 for k,v in counts.items() if k!='tests') and
+        not missing and observed_ids==expected_ids)
+print(json.dumps({'counts':counts,'output':stream.getvalue()[-20000:],
+                  'modules':{'expected':expected,'observed':sorted(observed),'missing':missing},
+                  'cases':{'expected':expected_ids,'observed':observed_ids,
+                           'missing':missing_ids,'unexpected':unexpected_ids}}))
 sys.exit(0 if passed else 1)
 '''
+
+
+def validate_unittest(observed, check, files, exit_code):
+    require(isinstance(observed, dict) and set(observed) == {'counts', 'output', 'modules', 'cases'} and
+            isinstance(observed['output'], str), 'invalid unittest report')
+    counts = observed['counts']
+    require(isinstance(counts, dict) and set(counts) ==
+            {'tests', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'} and
+            all(type(v) is int and v >= 0 for v in counts.values()), 'invalid unittest counts')
+    modules = observed['modules']
+    require(isinstance(modules, dict) and set(modules) == {'expected', 'observed', 'missing'},
+            'invalid unittest module coverage')
+    for key in ('expected', 'observed', 'missing'):
+        strings(modules[key], 'unittest modules', nonempty=key == 'expected')
+        require(modules[key] == sorted(set(modules[key])), 'invalid unittest module list')
+    expected = expected_unittest_modules(check, files)
+    require(modules['expected'] == expected and
+            modules['missing'] == [x for x in expected if x not in modules['observed']],
+            'unittest module coverage disagrees with the frozen contract')
+    cases = observed['cases']
+    require(isinstance(cases, dict) and set(cases) == {'expected', 'observed', 'missing', 'unexpected'},
+            'invalid unittest case coverage')
+    for key in cases:
+        values = cases[key]
+        require(isinstance(values, list) and len(values) <= 2000 and
+                all(isinstance(x, str) and 0 < len(x) <= 512 and '\x00' not in x for x in values) and
+                values == sorted(values), 'invalid unittest case list')
+    expected_ids = sorted(check['test_ids'])
+    require(cases['expected'] == expected_ids and len(cases['observed']) == counts['tests'] and
+            cases['missing'] == [x for x in expected_ids if x not in cases['observed']] and
+            cases['unexpected'] == [x for x in sorted(set(cases['observed'])) if x not in expected_ids],
+            'unittest case coverage disagrees with the frozen contract')
+    passed = (counts['tests'] > 0 and all(v == 0 for k, v in counts.items() if k != 'tests')
+              and not modules['missing'] and cases['observed'] == expected_ids)
+    require(exit_code == (0 if passed else 1), 'unittest counts/coverage/exit disagree')
+    return passed
 
 
 def validate_external(value, check_id, coverage):
@@ -165,7 +236,8 @@ def summarize(checks):
     return result
 
 
-def run_checks(workspace, checks, directory, runner, remaining, cancelled, launched):
+def run_checks(checks, files, directory, runner, remaining, cancelled, launched, *,
+               snapshot, snapshot_state, fresh):
     results = []
     for index, check in enumerate(checks):
         if cancelled():
@@ -173,6 +245,11 @@ def run_checks(workspace, checks, directory, runner, remaining, cancelled, launc
         remaining()
         folder = directory / ('check-' + str(index))
         folder.mkdir()
+        # A check never sees another check's workspace. Verify both the source
+        # and this particular snapshot before its result can be recorded.
+        fresh()
+        workspace = snapshot(folder)
+        before = snapshot_state(workspace)
         kind, observed, process = check['adapter'], {}, None
         if kind in ('json-equals', 'text'):
             try:
@@ -199,7 +276,9 @@ def run_checks(workspace, checks, directory, runner, remaining, cancelled, launc
         else:
             arguments = ([sys.executable, '-I', '-B', '-c', UNITTEST_DRIVER] if kind == 'python-unittest'
                          else expand(check['argv'], workspace))
-            request = {'start_dir': check['start_dir'], 'pattern': check['pattern']} if kind == 'python-unittest' else {
+            request = {'start_dir': check['start_dir'], 'pattern': check['pattern'],
+                       'expected_modules': expected_unittest_modules(check, files),
+                       'test_ids': check['test_ids']} if kind == 'python-unittest' else {
                 'schema_version': 1, 'check_id': check['id'], 'criterion': check['criterion'],
                 'purpose': check['purpose'], 'coverage': check['coverage']}
             process = runner.run(arguments, cwd=workspace, directory=folder, timeout=remaining(),
@@ -210,14 +289,7 @@ def run_checks(workspace, checks, directory, runner, remaining, cancelled, launc
                 require(len(output) <= MAX_CHECK_REPORT_BYTES, 'check report exceeds 256 KiB')
                 observed = bridge._status_json(output)
                 if kind == 'python-unittest':
-                    require(isinstance(observed, dict) and set(observed) == {'counts', 'output'} and
-                            isinstance(observed['output'], str), 'invalid unittest report')
-                    counts = observed['counts']
-                    require(isinstance(counts, dict) and set(counts) ==
-                            {'tests', 'failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'} and
-                            all(type(v) is int and v >= 0 for v in counts.values()), 'invalid unittest counts')
-                    passed = counts['tests'] > 0 and all(v == 0 for k, v in counts.items() if k != 'tests')
-                    require(process['exit_code'] == (0 if passed else 1), 'unittest counts/exit disagree')
+                    passed = validate_unittest(observed, check, files, process['exit_code'])
                 else:
                     validate_external(observed, check['id'], check['coverage'])
                     require(process['exit_code'] >= 0, 'external check terminated by signal')
@@ -231,6 +303,8 @@ def run_checks(workspace, checks, directory, runner, remaining, cancelled, launc
                       evidence_kind='deterministic_file_check' if process is None else 'trusted_process_report')
         if process is not None:
             result['process'] = process
+        require(snapshot_state(workspace) == before, 'check changed its frozen snapshot')
+        fresh()
         require(len(bridge.core.canonical_json(result).encode()) <= MAX_CHECK_REPORT_BYTES,
                 'check report exceeds 256 KiB')
         bridge.core.write_json(folder / 'check.json', result, exclusive=True)

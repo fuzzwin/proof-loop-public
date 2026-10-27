@@ -2,18 +2,17 @@
 
 ## General harness candidate — 2026-10-28
 
-Checked on macOS arm64 with CPython 3.14.3: 174 regression tests passed
-(the preserved 149 plus 25 harness tests), all 20 unchanged protected status
-acceptance tests passed, and both the original and multi-domain smoke checks
-passed. New tests exercise actual local subprocesses with explicitly synthetic
+The general harness adds tests that exercise actual local subprocesses with explicitly synthetic
 agent fixtures, conditional specialist/builder/verifier flows, bounded repairs
 and calls, false-pass controls, skips/empty suites, malformed protocols, partial
-coverage, changed evidence, timeouts, report limits and read-only status.
+coverage, changed evidence, timeouts, report limits and read-only status. Review
+repairs add independent-snapshot, candidate-freshness, legacy-status, and frozen
+test-case coverage regressions. See the change's review and verification record for results
+tied to its exact commit and tested runtime.
 
 Run `python3 -B tools/harness_smoke.py` for disposable software, JSON-data and
 document checks without a model. See [the harness guide](HARNESS.md) for contracts
-and extension protocols. These candidate checks are author-run, with independent
-review pending. They do not qualify new live-model/provider behavior or additional
+and extension protocols. Synthetic checks do not qualify live-model/provider behavior or additional
 platforms. The portable receipt acceptance boundary is unchanged.
 
 ## Published baseline checks

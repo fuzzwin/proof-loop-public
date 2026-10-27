@@ -733,7 +733,8 @@ def _status_summary(stage, result):
     return None, None
 
 
-def read_status(root, run_id, plan_path, *, plan_validator=None, summary_reader=None):
+def read_status(root, run_id, plan_path, *, plan_validator=None, summary_reader=None,
+                include_candidate=False):
     """Observe schema-1 files once. Matching hashes are not authentication."""
     import math
     import re
@@ -820,6 +821,8 @@ def read_status(root, run_id, plan_path, *, plan_validator=None, summary_reader=
         require(len(state['threads']) <= state['agent_calls'], 'thread count exceeds agent calls')
         _status_source_map(state.get('expected'), plan)
         _status_source_map(state.get('initial'), plan)
+        if include_candidate:
+            report['candidate_sha256'] = fingerprint(state['expected'])
         for name in plan['protected']:
             require(state['expected'][name] == state['initial'][name], 'protected source map changed: ' + name)
         for name, expected in state['expected'].items():

@@ -9,6 +9,10 @@ specialists, fresh verifiers, durable evidence and bounded repairs. Add checks-o
 execution and read-only typed status, three domain examples and a disposable
 smoke. Existing plans, core receipt acceptance and safe limits retain their behavior.
 
+Review repairs give each check its own guarded snapshot, bind each check result to
+its candidate, and require frozen unittest module and case coverage. Older draft
+harness runs remain readable as unbound historical evidence and require a new run.
+
 ## Current source candidate
 
 The current source includes the bounded native agent bridge and read-only agent status command. The bridge supports frozen plans, protected checks, conditional specialists, builder proposals, fresh verifier sessions, bounded repairs, durable call/time limits, checkpoint replay, and uncertain-outcome stops. Status inspection reads recorded state and reports evidence freshness; it does not resume runs or change acceptance.

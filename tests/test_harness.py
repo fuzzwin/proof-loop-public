@@ -62,7 +62,8 @@ class HarnessTests(unittest.TestCase):
             'requirements': ['requirements.md'],
             'checks': [
                 {'id': 'unit', 'purpose': 'verification', 'criterion': 'Addition tests pass without skips.',
-                 'adapter': 'python-unittest', 'start_dir': 'tests', 'pattern': 'test_*.py'},
+                 'adapter': 'python-unittest', 'start_dir': 'tests', 'pattern': 'test_*.py',
+                 'test_ids': ['test_app.T.test_add']},
                 {'id': 'data', 'purpose': 'validation', 'criterion': 'The agreed answer is integer 2.',
                  'adapter': 'json-equals', 'path': 'data.json', 'assertions': [{'pointer': '/answer', 'equals': 2}]},
                 {'id': 'report', 'purpose': 'validation', 'criterion': 'The report states its approved scope.',
@@ -208,9 +209,103 @@ class HarnessTests(unittest.TestCase):
 
     def test_snapshot_changes_block_and_preserve_project(self):
         (self.root / 'external.py').write_text('from pathlib import Path\nPath("data.json").write_text("changed")\n' + TOOL)
-        with self.assertRaisesRegex(ValueError, 'changed the frozen snapshot'):
+        with self.assertRaisesRegex(ValueError, 'changed its frozen snapshot'):
             self.open().advance()
         self.assertEqual('{"answer":1}\n', (self.root / 'data.json').read_text())
+
+    def test_checks_cannot_share_a_temporarily_modified_snapshot(self):
+        setup = 'from pathlib import Path\nPath("data.json").write_text(\'{"answer":2}\')\n' + TOOL
+        cleanup = 'from pathlib import Path\nPath("data.json").write_text(\'{"answer":1}\\n\')\n' + TOOL
+        (self.root / 'external.py').write_text(setup)
+        (self.root / 'cleanup.py').write_text(cleanup)
+        self.task['files'].append('cleanup.py'); self.task['protected'].append('cleanup.py')
+        original = copy.deepcopy(self.task['checks'][3])
+        last = copy.deepcopy(original); last.update(id='cleanup', controls=['cleanup.py'],
+                                                    argv=['{python}', '-B', 'cleanup.py'])
+        self.task['checks'] = [original, self.task['checks'][1], last]
+        self.write_task()
+        loop = self.open()
+        with self.assertRaisesRegex(ValueError, 'changed its frozen snapshot'):
+            loop.advance()
+        self.assertEqual('blocked_uncertain', loop.state['status'])
+        self.assertEqual(0, loop.state['agent_calls'])
+        self.assertFalse(list(loop.directory.glob('steps/*/check-1')))
+        self.assertEqual('{"answer":1}\n', (self.root / 'data.json').read_text())
+
+    def test_prior_candidate_pass_is_historical_after_builder_edits(self):
+        (self.root / 'app.py').write_text('def add(a,b): return a+b\n')
+        (self.root / 'data.json').write_text('{"answer":2}\n')
+        (self.root / 'report.md').write_text('Approved scope\n')
+        host = '''import json,sys,uuid
+r=json.load(sys.stdin)
+if r['role']=='verifier':
+ v={'verdict':'fail','candidate_sha256':r['candidate_sha256'],'findings':['Please repair']}
+else:
+ v={'summary':'change report','changes':[{'path':'report.md','content':'TBD\\n'}]}
+o={k:r[k] for k in ('protocol_version','request_id','role','candidate_sha256')}
+o.update(session_id=str(uuid.uuid4()),response=v)
+print(json.dumps(o))
+'''
+        (self.root / 'fixture_host.py').write_text(host)
+        self.task['specialists'] = []; self.write_task()
+        loop = self.open()
+        checkpoint = loop.advance(4)
+        self.assertEqual('quality', checkpoint['phase'])
+        self.assertTrue(checkpoint['quality_historical'])
+        self.assertIsNone(checkpoint['verification'])
+        self.assertIsNone(checkpoint['validation'])
+        self.assertEqual('pass', checkpoint['historical_quality']['validation']['state'])
+        status = harness.read_status(self.root, 'trial', 'task.json')
+        self.assertEqual('current', status['freshness']['state'])
+        self.assertTrue(status['quality_historical'])
+        self.assertIsNone(status['validation'])
+        self.assertEqual('pass', status['quality']['validation']['state'])
+        result = loop.advance(1)
+        self.assertEqual('fail', result['validation']['state'])
+        self.assertFalse(result['quality_historical'])
+
+    def test_unittest_requires_every_declared_test_module_to_execute(self):
+        (self.root / 'app.py').write_text('def add(a,b): return a+b\n')
+        nested = self.root / 'tests/nested'; nested.mkdir()
+        test = nested / 'test_hidden.py'
+        test.write_text('import unittest\nclass Hidden(unittest.TestCase):\n def test_fails(self): self.fail("must run")\n')
+        self.task['files'].append('tests/nested/test_hidden.py')
+        self.task['protected'].append('tests/nested/test_hidden.py')
+        self.task['checks'][0]['test_ids'].append('nested.test_hidden.Hidden.test_fails')
+        self.write_task()
+        missing = self.open('missing').check()
+        unit = missing['checks'][0]
+        self.assertEqual('fail', unit['state'])
+        self.assertEqual(['nested.test_hidden'], unit['observations']['modules']['missing'])
+        (nested / '__init__.py').write_text('')
+        self.task['files'].append('tests/nested/__init__.py')
+        self.task['protected'].append('tests/nested/__init__.py')
+        self.write_task()
+        failing = self.open('failing').check()['checks'][0]
+        self.assertEqual('fail', failing['state'])
+        self.assertEqual([], failing['observations']['modules']['missing'])
+        self.assertEqual(1, failing['observations']['counts']['failures'])
+        test.write_text('import unittest\nclass Hidden(unittest.TestCase):\n def test_passes(self): pass\n')
+        self.task['checks'][0]['test_ids'][-1] = 'nested.test_hidden.Hidden.test_passes'
+        self.write_task()
+        passed = self.open('passing').check()['checks'][0]
+        self.assertEqual('pass', passed['state'])
+        self.assertEqual([], passed['observations']['modules']['missing'])
+
+    def test_load_tests_cannot_hide_a_frozen_case(self):
+        (self.root / 'tests/test_app.py').write_text('''import unittest
+class T(unittest.TestCase):
+ def test_good(self): pass
+ def test_bad(self): self.fail('omitted by load_tests')
+def load_tests(loader, tests, pattern):
+ return unittest.TestSuite([T('test_good')])
+''')
+        self.task['checks'][0]['test_ids'] = ['test_app.T.test_good', 'test_app.T.test_bad']
+        self.write_task()
+        unit = self.open().check()['checks'][0]
+        self.assertEqual('fail', unit['state'])
+        self.assertEqual(0, unit['observations']['counts']['failures'])
+        self.assertEqual(['test_app.T.test_bad'], unit['observations']['cases']['missing'])
 
     def test_changed_contract_and_nested_evidence_block_replay(self):
         loop = self.open()
@@ -284,6 +379,43 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         with self.assertRaisesRegex(ValueError, 'differs from stage evidence'):
             loop.advance()
 
+    def test_state_only_quality_cannot_be_used_without_evidence(self):
+        loop = self.open()
+        loop.check()
+        loop.state['records'] = []
+        loop.save()
+        with self.assertRaisesRegex(ValueError, 'has no stage evidence'):
+            loop.advance()
+
+    def test_unbound_draft_results_are_read_only_historical_evidence(self):
+        loop = self.open()
+        loop.check()
+        record = loop.state['records'][0]
+        path = self.root / record['path']
+        stage = json.loads(path.read_text())
+        old = stage['result']
+        old.pop('candidate'); old.pop('candidate_sha256')
+        for item in old['checks']:
+            if item['adapter'] == 'python-unittest':
+                item['observations'].pop('modules')
+                item['observations'].pop('cases')
+                item['contract'].pop('test_ids')
+        self.task['checks'][0].pop('test_ids')
+        self.write_task()
+        loop.state['plan_sha256'] = hashlib.sha256((self.root / 'task.json').read_bytes()).hexdigest()
+        path.write_text(json.dumps(stage))
+        record['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+        loop.state['quality'] = old
+        loop.save()
+        report = harness.read_status(self.root, 'trial', 'task.json')
+        self.assertEqual('current', report['freshness']['state'], report)
+        self.assertTrue(report['quality_historical'])
+        self.assertTrue(report['quality']['unbound'])
+        self.assertIsNone(report['verification'])
+        self.assertIsNone(report['validation'])
+        with self.assertRaisesRegex(ValueError, 'invalid typed-check summary'):
+            harness.quality_summary(old, harness.compile_task(self.task, 'task.json', allow_legacy=True))
+
     def test_status_rejects_unknown_or_inconsistent_result(self):
         plan = harness.compile_task(self.task, 'task.json')
         loop = self.open()
@@ -321,6 +453,7 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         wrong = copy.deepcopy(self.task); wrong['protected'].remove('tests/test_app.py'); cases.append(wrong)
         wrong = copy.deepcopy(self.task); wrong['checks'][3]['controls'] = ['app.py']; cases.append(wrong)
         wrong = copy.deepcopy(self.task); wrong['host']['controls'] = ['app.py']; cases.append(wrong)
+        wrong = copy.deepcopy(self.task); wrong['files'].append('missing_noneditable.txt'); cases.append(wrong)
         for value in cases:
             (self.root / 'task.json').write_text(json.dumps(value))
             with self.assertRaises(ValueError):

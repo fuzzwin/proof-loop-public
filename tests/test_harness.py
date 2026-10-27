@@ -109,6 +109,46 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(result, loop.advance())
         self.assertEqual('current', harness.read_status(self.root, 'trial', 'task.json')['freshness']['state'])
 
+    def test_interrupted_promotion_can_be_recovered_via_harness_cli(self):
+        loop = self.open()
+        atomic = bridge.core.atomic_write
+        def interrupt(path, *args, **kwargs):
+            if path == self.root / 'data.json':
+                raise OSError('synthetic interrupted promotion')
+            return atomic(path, *args, **kwargs)
+        with patch.object(bridge.core, 'atomic_write', side_effect=interrupt):
+            with self.assertRaisesRegex(OSError, 'interrupted promotion'):
+                loop.advance()
+        self.assertEqual('blocked_uncertain', loop.state['status'])
+        self.assertIn('harness-recover', loop.status()['next_action'])
+        calls = loop.state['agent_calls']
+        loop.close()
+        cmd = [sys.executable, '-B', str(SOURCE / 'proofloop'), 'harness-recover',
+               '--root', str(self.root), '--run-id', 'trial', '--task', 'task.json', '--finish-promotion']
+        recovered = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(0, recovered.returncode, recovered.stdout + recovered.stderr)
+        result = json.loads(recovered.stdout)
+        self.assertEqual('completed_advisory', result['state'])
+        self.assertEqual(calls, result['agent_calls'])
+        self.assertEqual('{"answer":2}\n', (self.root / 'data.json').read_text())
+        replay = subprocess.run(cmd, capture_output=True, text=True)
+        self.assertEqual(0, replay.returncode, replay.stdout + replay.stderr)
+        self.assertEqual(result, json.loads(replay.stdout))
+
+    def test_recovery_cli_reports_malformed_state_without_a_traceback(self):
+        loop = self.open()
+        loop.check()
+        loop.close()
+        state = json.loads(loop.state_path.read_text())
+        del state['plan_sha256']
+        loop.state_path.write_text(json.dumps(state))
+        result = subprocess.run([sys.executable, '-B', str(SOURCE / 'proofloop'), 'harness-recover',
+                                 '--root', str(self.root), '--run-id', 'trial', '--task', 'task.json',
+                                 '--finish-promotion'], capture_output=True, text=True)
+        self.assertEqual(2, result.returncode)
+        self.assertEqual('blocked', json.loads(result.stdout)['state'])
+        self.assertNotIn('Traceback', result.stderr)
+
     def test_check_only_never_launches_host_and_can_resume(self):
         loop = self.open()
         with patch.object(harness.CommandHost, 'run', side_effect=AssertionError('host launched')):
@@ -212,6 +252,20 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'changed its frozen snapshot'):
             self.open().advance()
         self.assertEqual('{"answer":1}\n', (self.root / 'data.json').read_text())
+
+    def test_check_cannot_create_an_untracked_directory_in_snapshot(self):
+        (self.root / 'external.py').write_text('from pathlib import Path\nPath("unexpected").mkdir()\n' + TOOL)
+        with self.assertRaisesRegex(ValueError, 'changed its frozen snapshot'):
+            self.open().advance()
+        self.assertFalse((self.root / 'unexpected').exists())
+
+    def test_check_record_binds_modes_to_candidate(self):
+        loop = self.open()
+        loop.check()
+        result = copy.deepcopy(loop.state['quality'])
+        result['candidate_modes']['app.py'] ^= 0o100
+        with self.assertRaisesRegex(ValueError, 'candidate does not match'):
+            harness.quality_summary(result, loop.plan)
 
     def test_checks_cannot_share_a_temporarily_modified_snapshot(self):
         setup = 'from pathlib import Path\nPath("data.json").write_text(\'{"answer":2}\')\n' + TOOL
@@ -364,12 +418,14 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         self.task['limits']['max_agent_calls'] = 1
         self.write_task()
         loop = self.open()
-        loop.advance(2)  # Initial failed checks and specialist dispatch.
+        first = loop.advance(2)  # Insufficient budget blocks before partial dispatch.
         loop.close()
         resumed = self.open()
-        with self.assertRaisesRegex(ValueError, 'dispatch budget'):
-            resumed.advance()
-        self.assertEqual(1, resumed.state['agent_calls'])
+        result = resumed.advance()
+        self.assertEqual('blocked', result['state'])
+        self.assertIn('dispatch budget', result['reason'])
+        self.assertEqual(first['agent_calls'], result['agent_calls'])
+        self.assertLessEqual(result['agent_calls'], 1)
 
     def test_tampered_state_quality_is_rejected(self):
         loop = self.open()
@@ -395,6 +451,7 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         stage = json.loads(path.read_text())
         old = stage['result']
         old.pop('candidate'); old.pop('candidate_sha256')
+        old.pop('candidate_modes'); old.pop('directory_modes')
         for item in old['checks']:
             if item['adapter'] == 'python-unittest':
                 item['observations'].pop('modules')
@@ -415,6 +472,21 @@ if role=='verifier' and '#reviewed' not in Path('app.py').read_text():
         self.assertIsNone(report['validation'])
         with self.assertRaisesRegex(ValueError, 'invalid typed-check summary'):
             harness.quality_summary(old, harness.compile_task(self.task, 'task.json', allow_legacy=True))
+
+    def test_legacy_paths_are_allowed_only_for_read_only_contract_inspection(self):
+        task = copy.deepcopy(self.task)
+        for key in ('files', 'protected', 'requirements'):
+            task[key] = ['requirements\tlegacy.md' if name == 'requirements.md' else name for name in task[key]]
+        task['files'] = ['data\tlegacy.json' if name == 'data.json' else name for name in task['files']]
+        task['editable'] = ['data\tlegacy.json' if name == 'data.json' else name for name in task['editable']]
+        task['checks'][1]['path'] = 'data\tlegacy.json'
+        task['files'] = [name.replace('tests/', 'tests\tlegacy/') for name in task['files']]
+        task['protected'] = [name.replace('tests/', 'tests\tlegacy/') for name in task['protected']]
+        task['checks'][0]['start_dir'] = 'tests\tlegacy'
+        with self.assertRaisesRegex(ValueError, 'control characters'):
+            harness.compile_task(task, 'task.json')
+        plan = harness.compile_task(task, 'task.json', allow_legacy=True)
+        self.assertIn('requirements\tlegacy.md', plan['protected'])
 
     def test_status_rejects_unknown_or_inconsistent_result(self):
         plan = harness.compile_task(self.task, 'task.json')

@@ -177,6 +177,11 @@ Stale outcomes remain historical. Exit 0 means the inspection is stable and
 current, even for a blocked run; exit 2 means stale, indeterminate or unreadable.
 After a builder changes the candidate, checks from the prior candidate are marked
 historical and current verification/validation are unset until checks run again.
+An interrupted journaled promotion can be inspected with `harness-status` and, after
+reviewing the files and evidence, completed without new agent calls using
+`harness-recover --root PROJECT --run-id RUN --task task.json --finish-promotion`.
+Pause other writers during promotion and recovery; the source comparison and replacement
+are separate operations.
 Pre-repair draft runs lack candidate binding and module/case coverage: status can
 show their recorded checks as unbound historical evidence, but they cannot resume
 as current work. Add the agreed `test_ids` to unittest checks and start a new run

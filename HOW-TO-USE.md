@@ -2,6 +2,10 @@
 
 This entry guide uses the 0.2.2 CLI source. [HOW-TO.md](HOW-TO.md) retains the detailed receipt/pin procedure. No command from a separate Windows implementation is assumed here.
 
+For code fixes with a configured Codex host, start with the [one-request workflow](ONE-REQUEST-WORKFLOW.md).
+Configure project files and trusted checks once, then use `fix --request` to receive a checked
+patch or blocker. The receipt procedure below remains the separate portable acceptance path.
+
 ## 1. Agree the scope before execution
 
 Name the project/source commit, exact input and test files, runtime, permitted writes, done criteria and what is out of scope. Prefer an isolated copy when testing an existing app. Preserve dirty work and live deployment. Freeze acceptance tests before the builder starts; revised scope needs a new approved card, not edits to old evidence.

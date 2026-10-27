@@ -3,6 +3,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -60,6 +62,63 @@ class AgentBridgeTests(unittest.TestCase):
         self.addCleanup(loop.close)
         return loop
 
+    def test_saved_run_identity_mismatch_cannot_replay(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        calls = len(self.host.calls)
+        state = json.loads(loop.state_path.read_text())
+        state['run_id'] = 'TRIAL'
+        loop.state_path.write_text(json.dumps(state))
+        with self.assertRaisesRegex(ValueError, 'run identity mismatch'):
+            loop.advance()
+        self.assertEqual(calls, len(self.host.calls))
+
+    def test_case_insensitive_run_id_alias_cannot_replay(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        alias_dir = self.root / '.proof/agent-runs/TRIAL'
+        if not alias_dir.exists():
+            return  # On case-sensitive filesystems these are distinct paths.
+        calls = len(self.host.calls)
+        alias = bridge.AgentBridge(self.root, 'TRIAL', 'plan.json', host=self.host)
+        self.addCleanup(alias.close)
+        with self.assertRaisesRegex(ValueError, 'run identity mismatch'):
+            alias.advance()
+        self.assertEqual(calls, len(self.host.calls))
+
+    def test_existing_run_directory_without_state_never_redispatches(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        calls = len(self.host.calls)
+        loop.close()
+        shutil.rmtree(loop.directory)
+        loop.directory.mkdir(mode=0o700)
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        if coordinator.exists():
+            coordinator.unlink()
+        with self.assertRaisesRegex(ValueError, 'saved run state missing'):
+            loop.advance()
+        self.assertEqual(calls, len(self.host.calls))
+        self.assertEqual([], list(loop.directory.iterdir()))
+        self.assertFalse(coordinator.exists())
+
+    def test_coordinator_change_after_validation_blocks_checkpoint_resume(self):
+        loop = self.open()
+        self.assertEqual('checkpoint', loop.advance(1)['state'])
+        loop.close()
+        validate = bridge.validate_existing_coordinator
+        def mutate(*args, **kwargs):
+            fingerprint = validate(*args, **kwargs)
+            db = sqlite3.connect(self.root / '.proof/coordinator.sqlite')
+            db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
+            db.commit()
+            db.close()
+            return fingerprint
+        with patch('agent_bridge.validate_existing_coordinator', side_effect=mutate):
+            with self.assertRaisesRegex(ValueError, 'coordinator evidence changed since inspection'):
+                loop.advance()
+        self.assertEqual([], self.host.calls)
+
     def test_real_quality_failure_builder_and_fresh_verifier_then_replay(self):
         loop = self.open()
         result = loop.advance()
@@ -69,7 +128,9 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertNotIn('BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER', self.host.calls[-1][1])
         self.assertEqual(1, result['repair_rounds_used'])
         self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
+        before = bridge.tree_map(self.root)
         self.assertEqual(result, loop.advance())
+        self.assertEqual(before, bridge.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_matching_quality_still_needs_independent_verifier(self):
@@ -107,17 +168,17 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertEqual('blocked', self.open().advance()['state'])
         self.assertEqual([], self.host.calls)
 
-    def test_agent_budget_survives_checkpoint_resume(self):
+    def test_insufficient_budget_preserves_calls_and_survives_resume(self):
         self.plan['max_agent_calls'] = 1
         self.save_plan()
         loop = self.open()
-        loop.advance(3)  # quality, empty specialist routing, builder
-        self.assertEqual(1, loop.state['agent_calls'])
+        result = loop.advance()
+        self.assertEqual('blocked', result['state'])
+        self.assertIn('repair and fresh verifier', result['reason'])
+        self.assertEqual(0, loop.state['agent_calls'])
         loop.close()
-        resumed = self.open()
-        with self.assertRaisesRegex(ValueError, 'dispatch budget'):
-            resumed.advance()
-        self.assertEqual(['builder'], [r for r,p in self.host.calls])
+        self.assertEqual(result, self.open().advance())
+        self.assertEqual([], self.host.calls)
 
     def test_completed_replay_rejects_root_and_nested_evidence_drift(self):
         loop = self.open()
@@ -183,7 +244,8 @@ class AgentBridgeTests(unittest.TestCase):
         with patch.object(loop, 'transition', side_effect=interrupted):
             with self.assertRaisesRegex(RuntimeError, 'lost acknowledgement'):
                 loop.advance()
-        self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
+        self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())
+        self.assertEqual('VALUE = 2\n', (loop.candidate_root / 'app.py').read_text())
         loop.close()
         with self.assertRaisesRegex(ValueError, 'unfinished stage'):
             self.open().advance()

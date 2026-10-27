@@ -1,0 +1,5 @@
+This is a synthetic example, not financial or production software.
+R1: Convert price and discount using Decimal(str(value)). Apply price * (1 - discount), then round each unit price to cents with ROUND_HALF_UP.
+R2: Multiply the discounted unit price by quantity and sum all lines. Empty orders return Decimal('0.00').
+R3: Preserve the public functions and all protected tests and requirements.
+Inputs in this demonstration are valid nonnegative prices and integer quantities with discounts from zero to one. Input validation is outside this example's scope.

@@ -1,6 +1,5 @@
 """General task contracts, typed checks and interchangeable local agent hosts."""
 import json
-import stat
 import uuid
 
 import agent_bridge as bridge
@@ -22,7 +21,7 @@ def compile_task(task, path, *, allow_legacy=False):
             'explicit repair, call and time limits required')
     plan = {k: task[k] for k in ('goal', 'files', 'editable', 'protected', 'specialists')}
     plan.update(task['limits'], quality=[['typed-checks']])
-    bridge.validate_plan(plan, path)
+    bridge.validate_plan(plan, path, legacy_paths=allow_legacy)
     requirements = task['requirements']
     checks.strings(requirements, 'requirements')
     require(len(set(requirements)) == len(requirements) and set(requirements) <= set(plan['protected']),
@@ -69,8 +68,7 @@ class CommandHost:
 
 
 def snapshot_state(root):
-    hashes = bridge.tree_map(root)
-    return {name: (checksum, stat.S_IMODE((root / name).stat().st_mode)) for name, checksum in hashes.items()}
+    return bridge.tree_state(root)
 
 
 class HarnessBridge(bridge.AgentBridge):
@@ -87,13 +85,17 @@ class HarnessBridge(bridge.AgentBridge):
         bridge._status_source_map(self.state.get('initial'), self.plan)
         bridge._status_source_map(self.state.get('expected'), self.plan)
 
-    def fresh(self):
-        super().fresh()
+    def verifier_requirements(self):
+        # Harness requirements are protected filenames, not assessment rows.
+        return None
+
+    def fresh(self, source=True):
+        super().fresh(source=source)
         latest = None
         for record in self.state['records']:
             value = bridge.core.load_json(bridge.core.safe_project_file(self.root, record['path']))
             require(isinstance(value.get('stage'), str), 'invalid recorded stage')
-            if value['stage'].startswith('quality-'):
+            if value['stage'].startswith(('quality-', 'recheck-')):
                 latest = quality_summary(value['result'], self.plan)
         if latest is not None:
             require(checks.exact(latest, self.state.get('quality')), 'saved check summary differs from stage evidence')
@@ -107,7 +109,9 @@ class HarnessBridge(bridge.AgentBridge):
                                   snapshot_state=snapshot_state, fresh=self.fresh)
         self.guard()
         result['candidate'] = self.state['expected'].copy()
-        result['candidate_sha256'] = bridge.fingerprint(result['candidate'])
+        result['candidate_modes'] = self.state['candidate_modes'].copy()
+        result['directory_modes'] = self.state['directory_modes'].copy()
+        result['candidate_sha256'] = bridge.fingerprint(result['candidate'], result['candidate_modes'], result['directory_modes'])
         return result
 
     def check(self):
@@ -139,6 +143,8 @@ class HarnessBridge(bridge.AgentBridge):
 
     def status(self):
         result = super().status()
+        if self.state.get('active') and self.state['active']['stage'] == 'promote' and self.state.get('promotion'):
+            result['next_action'] = 'Inspect harness-status; harness-recover --finish-promotion can finish the exact verified candidate without model calls.'
         quality = self.state.get('quality')
         require(quality is None or isinstance(quality, dict), 'invalid saved check summary')
         quality = quality or {}
@@ -156,12 +162,17 @@ def quality_summary(result, plan, *, allow_unbound=False):
     base = {'passed', 'checks', 'verification', 'validation'}
     require(isinstance(result, dict), 'invalid typed-check summary')
     unbound = set(result) == base
-    require(set(result) == base | {'candidate', 'candidate_sha256'} or (allow_unbound and unbound),
+    legacy = set(result) == base | {'candidate', 'candidate_sha256'}
+    require(set(result) == base | {'candidate', 'candidate_modes', 'directory_modes', 'candidate_sha256'} or
+            (allow_unbound and (unbound or legacy)),
             'invalid typed-check summary')
     if not unbound:
         bridge._status_source_map(result['candidate'], plan)
+        if not legacy:
+            bridge._status_modes(result['candidate_modes'], result['candidate'], plan)
+            bridge._status_directories(result['directory_modes'], plan)
         require(bridge._status_hash(result['candidate_sha256']) and
-                result['candidate_sha256'] == bridge.fingerprint(result['candidate']),
+                result['candidate_sha256'] == bridge.fingerprint(result['candidate'], result.get('candidate_modes'), result.get('directory_modes')),
                 'check candidate does not match its recorded source map')
     outcomes = result['checks']
     require(isinstance(outcomes, list) and len(outcomes) == len(plan['checks']), 'check coverage mismatch')
@@ -236,7 +247,7 @@ def read_status(root, run_id, task_path):
         plan.update(compile_task(value, path, allow_legacy=True))
         return plan
     def summary(stage, value):
-        if stage.startswith('quality-'):
+        if stage.startswith(('quality-', 'recheck-')):
             return 'quality', quality_summary(value, plan, allow_unbound=True)
         return bridge._status_summary(stage, value)
     result = bridge.read_status(root, run_id, task_path, plan_validator=validator,
@@ -286,3 +297,20 @@ def status_command(args):
     report = read_status(args.root, args.run_id, args.task)
     print(json.dumps(report, sort_keys=True, allow_nan=False))
     return 0 if report['freshness']['state'] == 'current' else 2
+
+
+def recover_command(args):
+    loop = None
+    try:
+        require(args.finish_promotion, 'explicit --finish-promotion is required')
+        loop = HarnessBridge(args.root, args.run_id, args.task)
+        report = loop.recover_promotion()
+        code = 0
+    except (OSError, ValueError, TypeError, KeyError, OverflowError, RecursionError) as exc:
+        report = {'run_id': args.run_id, 'state': 'blocked', 'reason': str(exc), 'acceptance': 'not_accepted'}
+        code = 2
+    finally:
+        if loop:
+            loop.close()
+    print(json.dumps(report, sort_keys=True, allow_nan=False))
+    return code

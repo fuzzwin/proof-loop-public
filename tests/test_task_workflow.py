@@ -5,10 +5,12 @@ import io
 import json
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import agent_bridge as bridge
 import task_workflow as tasks
@@ -86,6 +88,42 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual('missing_run_evidence', result['blocker']['code'])
         self.assertEqual(2, len(self.host.calls))
         self.assertFalse(coordinator.exists())
+
+    def test_replaced_coordinator_blocks_json_without_mutation_or_dispatch(self):
+        self.run_fix()
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        original = coordinator.read_bytes()
+        for raw in (b'', b'not a sqlite database'):
+            with self.subTest(data=raw):
+                coordinator.write_bytes(raw)
+                before = bridge.tree_map(self.root)
+                args = argparse.Namespace(root=str(self.root), run_id='fix', profile='proofloop-project.json',
+                                          request='Make VALUE equal 2.', request_file=None, json=True)
+                output = io.StringIO()
+                with mock.patch.object(bridge, 'CodexHost', side_effect=AssertionError('unexpected dispatch')):
+                    with contextlib.redirect_stdout(output):
+                        code = tasks.command(args)
+                result = json.loads(output.getvalue())
+                self.assertEqual(2, code)
+                self.assertEqual('missing_run_evidence', result['blocker']['code'])
+                self.assertEqual(before, bridge.tree_map(self.root))
+                self.assertEqual(raw, coordinator.read_bytes())
+                self.assertEqual(2, len(self.host.calls))
+                coordinator.write_bytes(original)
+
+    def test_missing_coordinator_attempt_evidence_blocks_without_dispatch(self):
+        self.run_fix()
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        db = sqlite3.connect(coordinator)
+        db.execute('DELETE FROM attempts WHERE run=?', ('agent:fix:0',))
+        db.commit()
+        db.close()
+        before = bridge.tree_map(self.root)
+        result = self.run_fix()
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(2, len(self.host.calls))
 
     def test_interrupted_intake_without_run_state_never_dispatches(self):
         tasks.prepare(self.root, 'fix', 'Make VALUE equal 2.', 'proofloop-project.json')

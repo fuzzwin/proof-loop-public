@@ -12,11 +12,14 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import uuid
+from urllib.parse import quote
 
 import proofloop as core
 from coordinator import Coordinator, digest, require
@@ -106,7 +109,7 @@ def _clear_new_directory_acl(fd):
     raise ValueError('private-run ACL handling is unsupported on this host')
 
 
-def private_run_directory(root, relative):
+def private_run_directory(root, relative, *, include_created=False):
     """Create a private run boundary without altering an existing directory."""
     parts = Path(relative).parts
     require(len(parts) == 3 and parts[0] == '.proof' and parts[1] in ('tasks', 'agent-runs') and
@@ -133,7 +136,62 @@ def private_run_directory(root, relative):
                 'run evidence directory has an ACL; inspect existing permissions before changing them')
     finally:
         os.close(fd)
-    return directory
+    return (directory, created) if include_created else directory
+
+
+def validate_existing_coordinator(path, state, root):
+    """Inspect an isolated snapshot, never opening the original database with SQLite."""
+    try:
+        with tempfile.TemporaryDirectory(prefix='proofloop-coordinator-check-') as temporary:
+            snapshot = Path(temporary) / 'coordinator.sqlite'
+            wal = Path(str(path) + '-wal')
+            before = (digest(path), digest(wal) if wal.exists() else None)
+            shutil.copyfile(path, snapshot)
+            if before[1] is not None:
+                shutil.copyfile(wal, Path(str(snapshot) + '-wal'))
+            require(before == (digest(path), digest(wal) if wal.exists() else None),
+                    'coordinator changed during inspection')
+            uri = 'file:' + quote(str(snapshot), safe='/') + '?mode=ro'
+            with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=5)) as db:
+                _validate_coordinator_snapshot(db, state, root)
+    except (sqlite3.DatabaseError, OSError, ValueError, TypeError, KeyError, OverflowError) as exc:
+        raise ValueError('coordinator evidence missing or invalid; inspect the prior run before continuing') from exc
+
+
+def _validate_coordinator_snapshot(db, state, root):
+    require(db.execute('PRAGMA quick_check').fetchone() == ('ok',), 'database integrity check failed')
+    tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    require({'runs', 'tasks', 'operations', 'events', 'attempts'} <= tables, 'coordinator schema missing')
+    records = state.get('records')
+    require(isinstance(records, list), 'invalid recorded stages')
+    def stage_row(run, *, completed):
+        require(db.execute('SELECT 1 FROM runs WHERE id=?', (run,)).fetchone() is not None,
+                'coordinator run missing')
+        row = db.execute('SELECT state,data FROM tasks WHERE run=? AND id=?', (run, 'work')).fetchone()
+        allowed = ('succeeded',) if completed else ('reserved', 'running', 'uncertain', 'succeeded')
+        require(row is not None and row[0] in allowed, 'coordinator stage missing')
+        data = json.loads(row[1])
+        attempt = db.execute('SELECT state FROM attempts WHERE id=? AND run=? AND task=?',
+                             (data['attempt'], run, 'work')).fetchone()
+        require(attempt is not None and attempt[0] == row[0], 'coordinator attempt missing or inconsistent')
+        events = {event[0] for event in db.execute('SELECT operation FROM events WHERE run=?', (run,))}
+        required = {'submit', 'claim', 'result'} if completed else {'submit', 'claim'}
+        require(required <= events and (not completed or bool(events & {'dispatch', 'reconcile'})) and
+                db.execute('SELECT 1 FROM operations WHERE key=?',
+                                                  (run + ':submit',)).fetchone() is not None,
+                'coordinator operation history missing')
+        return data
+    for record in records:
+        require(isinstance(record, dict), 'invalid recorded stage')
+        data = stage_row(record['coordinator_run'], completed=True)
+        result = data['result']
+        require(result['sha256'] == record['sha256'] and
+                Path(result['artifact']).resolve() == (root / record['path']).resolve(),
+                'coordinator stage evidence differs')
+    active = state.get('active')
+    if active:
+        require(isinstance(active, dict), 'invalid active stage')
+        stage_row(active['coordinator_run'], completed=False)
 
 
 def normalized_name(value):
@@ -595,10 +653,11 @@ class AgentBridge:
 
     def load(self):
         # Caller holds project_lock for the entire advance; other hosts cannot overlap.
-        private_run_directory(self.root, self.relative)
+        _, created = private_run_directory(self.root, self.relative, include_created=True)
         require(digest(plan_file(self.root, self.plan_path)) == self.plan_sha256,
                 'plan changed since parsing; reconstruct bridge before execution')
         existing_state = self.state_path.exists()
+        require(existing_state or created, 'saved run state missing or unsafe; inspect the prior run before continuing')
         if existing_state:
             self.state = core.load_json(core.safe_project_file(self.root, self.relative + '/state.json'))
             require(self.state.get('schema_version') == 3, 'legacy bridge run: inspect with the original version; use a new run ID')
@@ -637,6 +696,8 @@ class AgentBridge:
         db = core.safe_project_file(self.root, db_rel) if (self.root / db_rel).exists() else core.safe_write_path(self.root, db_rel)
         for suffix in ('', '-wal', '-shm'):
             require(not Path(str(db) + suffix).is_symlink(), 'coordinator database symlink rejected')
+        if existing_state:
+            validate_existing_coordinator(db, self.state, self.root)
         self.close()
         self.coordinator = Coordinator(db)
 

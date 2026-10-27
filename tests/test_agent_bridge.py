@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -83,6 +84,22 @@ class AgentBridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'run identity mismatch'):
             alias.advance()
         self.assertEqual(calls, len(self.host.calls))
+
+    def test_existing_run_directory_without_state_never_redispatches(self):
+        loop = self.open()
+        self.assertEqual('completed_advisory', loop.advance()['state'])
+        calls = len(self.host.calls)
+        loop.close()
+        shutil.rmtree(loop.directory)
+        loop.directory.mkdir(mode=0o700)
+        coordinator = self.root / '.proof/coordinator.sqlite'
+        if coordinator.exists():
+            coordinator.unlink()
+        with self.assertRaisesRegex(ValueError, 'saved run state missing'):
+            loop.advance()
+        self.assertEqual(calls, len(self.host.calls))
+        self.assertEqual([], list(loop.directory.iterdir()))
+        self.assertFalse(coordinator.exists())
 
     def test_real_quality_failure_builder_and_fresh_verifier_then_replay(self):
         loop = self.open()

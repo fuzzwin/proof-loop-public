@@ -128,7 +128,6 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertNotIn('BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER', self.host.calls[-1][1])
         self.assertEqual(1, result['repair_rounds_used'])
         self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
-        loop.close()
         before = bridge.tree_map(self.root)
         self.assertEqual(result, loop.advance())
         self.assertEqual(before, bridge.tree_map(self.root))

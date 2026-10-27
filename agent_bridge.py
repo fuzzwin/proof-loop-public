@@ -698,6 +698,17 @@ class AgentBridge:
         except (ValueError, OSError) as exc:
             raise ValueError('coordinator evidence changed since inspection') from exc
 
+    def _completed_status(self):
+        # Finish SQLite writes before exposing completion, including for callers
+        # retaining this object for replay. Revalidate the closed database so
+        # later freshness checks use the same read-only evidence contract.
+        self.close()
+        db = core.safe_project_file(self.root, '.proof/coordinator.sqlite')
+        self.coordinator_fingerprint = validate_existing_coordinator(db, self.state, self.root, self.directory)
+        self.read_only_replay = True
+        self.fresh()
+        return self.status()
+
     def load(self):
         # Caller holds project_lock for the entire advance; other hosts cannot overlap.
         self.close()  # Flush any coordinator held by this object before inspecting evidence.
@@ -1171,7 +1182,7 @@ class AgentBridge:
             self.fresh()  # Do not persist completion if the promoted source or evidence changed.
             self.state.update(active=None, status='completed_advisory', reason=None)
             self.save()
-            return self.status()
+            return self._completed_status()
 
     def repair(self, directory, launched):
         result = self.agent('builder', directory, launched)
@@ -1268,7 +1279,7 @@ class AgentBridge:
                 self.save()
                 raise
             self.save()
-            return self.status()
+            return self._completed_status() if self.state['status'] == 'completed_advisory' else self.status()
 
     def status(self):
         self._private_fresh()

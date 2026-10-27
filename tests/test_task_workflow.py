@@ -162,6 +162,27 @@ class TaskWorkflowTests(unittest.TestCase):
         self.assertEqual(changed[0], coordinator.read_bytes())
         self.assertEqual(2, len(self.host.calls))
 
+    def test_coordinator_history_changed_during_resume_blocks_completion(self):
+        request = 'Make VALUE equal 2.'
+        plan, _ = tasks.prepare(self.root, 'resume', request, 'proofloop-project.json')
+        loop = bridge.AgentBridge(self.root, 'resume', plan, host=self.host)
+        self.assertEqual('checkpoint', loop.advance(1)['state'])
+        loop.close()
+        original_fresh = bridge.AgentBridge.fresh
+        changed = []
+        def alter_after_open(instance, *args, **kwargs):
+            original_fresh(instance, *args, **kwargs)
+            if not changed and instance.coordinator is not None and instance.state['status'] == 'checkpoint':
+                with contextlib.closing(sqlite3.connect(self.root / '.proof/coordinator.sqlite')) as db:
+                    db.execute("DELETE FROM operations WHERE key LIKE 'agent:resume:0:%' AND key NOT LIKE '%:submit'")
+                    db.commit()
+                changed.append(True)
+        with mock.patch.object(bridge.AgentBridge, 'fresh', new=alter_after_open):
+            result = self.run_fix(request, run_id='resume')
+        self.assertEqual([True], changed)
+        self.assertEqual('blocked', result['outcome'])
+        self.assertEqual('missing_run_evidence', result['blocker']['code'])
+
     def test_completed_replay_reads_private_snapshot_without_opening_live_coordinator(self):
         original = self.run_fix()
         before = bridge.tree_map(self.root)

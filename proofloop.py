@@ -1122,6 +1122,13 @@ def parser():
     stop = sub.add_parser('harness-cancel', help='request cancellation of a typed task run')
     stop.add_argument('--root', required=True); stop.add_argument('--run-id', required=True)
     stop.set_defaults(func=cancel_agents)
+    recovery = sub.add_parser('harness-recover', help='finish a journaled typed-task promotion without redispatch')
+    recovery.add_argument('--root', required=True); recovery.add_argument('--run-id', required=True)
+    recovery.add_argument('--task', required=True); recovery.add_argument('--finish-promotion', action='store_true', required=True)
+    def recover_harness(args):
+        from harness import recover_command
+        return recover_command(args)
+    recovery.set_defaults(func=recover_harness)
     adapters = sub.add_parser('harness-adapters', help='list version-1 built-in check adapters')
     def show_adapters(args):
         from harness_checks import ADAPTERS

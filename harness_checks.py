@@ -62,7 +62,7 @@ def validate_checks(checks, files, protected, *, allow_legacy=False):
                 legal = legal - {'test_ids'}
         require(set(check) == legal, 'invalid fields for check ' + name)
         if kind in ('json-equals', 'text'):
-            bridge.relative_name(check['path'])
+            bridge.relative_name(check['path'], legacy=allow_legacy)
             require(check['path'] in files, 'check artifact must be a declared file')
         if kind == 'json-equals':
             assertions = check['assertions']
@@ -77,7 +77,7 @@ def validate_checks(checks, files, protected, *, allow_legacy=False):
             strings(check['excludes'], 'excludes', nonempty=False)
             require(check['contains'] or check['excludes'], 'at least one text assertion required')
         elif kind == 'python-unittest':
-            directory = bridge.relative_name(check['start_dir'])
+            directory = bridge.relative_name(check['start_dir'], legacy=allow_legacy)
             pattern = check['pattern']
             require(isinstance(pattern, str) and 0 < len(pattern) <= 128 and
                     '/' not in pattern and '\\' not in pattern and '\x00' not in pattern,

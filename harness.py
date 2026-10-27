@@ -143,6 +143,8 @@ class HarnessBridge(bridge.AgentBridge):
 
     def status(self):
         result = super().status()
+        if self.state.get('active') and self.state['active']['stage'] == 'promote' and self.state.get('promotion'):
+            result['next_action'] = 'Inspect harness-status; harness-recover --finish-promotion can finish the exact verified candidate without model calls.'
         quality = self.state.get('quality')
         require(quality is None or isinstance(quality, dict), 'invalid saved check summary')
         quality = quality or {}
@@ -295,3 +297,13 @@ def status_command(args):
     report = read_status(args.root, args.run_id, args.task)
     print(json.dumps(report, sort_keys=True, allow_nan=False))
     return 0 if report['freshness']['state'] == 'current' else 2
+
+
+def recover_command(args):
+    require(args.finish_promotion, 'explicit --finish-promotion is required')
+    loop = HarnessBridge(args.root, args.run_id, args.task)
+    try:
+        print(json.dumps(loop.recover_promotion(), sort_keys=True, allow_nan=False))
+        return 0
+    finally:
+        loop.close()

@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import sqlite3
 from pathlib import Path
 import tempfile
 import time
@@ -124,6 +125,26 @@ class RecoveryTests(unittest.TestCase):
         with patch('agent_bridge.validate_existing_coordinator', side_effect=fail_completed):
             with self.assertRaisesRegex(ValueError, 'coordinator evidence missing or invalid'):
                 loop.recover_promotion()
+        persisted = json.loads(loop.state_path.read_text())
+        self.assertEqual('blocked_uncertain', persisted['status'])
+        self.assertIsNotNone(persisted['active'])
+
+    def test_recovery_restores_uncertain_state_if_evidence_changes_after_save(self):
+        self.two_files()
+        loop = self.interrupt_promotion()
+        save = loop.save
+        changed = []
+        def mutate_after_completion_save():
+            save()
+            if loop.state['status'] == 'completed_advisory' and not changed:
+                with contextlib.closing(sqlite3.connect(self.root / '.proof/coordinator.sqlite')) as db:
+                    db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
+                    db.commit()
+                changed.append(True)
+        with patch.object(loop, 'save', side_effect=mutate_after_completion_save):
+            with self.assertRaisesRegex(ValueError, 'coordinator evidence changed since inspection'):
+                loop.recover_promotion()
+        self.assertEqual([True], changed)
         persisted = json.loads(loop.state_path.read_text())
         self.assertEqual('blocked_uncertain', persisted['status'])
         self.assertIsNotNone(persisted['active'])

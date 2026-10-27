@@ -4,6 +4,7 @@ This is a trusted local host, not an OS sandbox or portable acceptance adapter.
 Agents see read-only snapshots and propose content; only this host applies edits.
 """
 import contextlib
+import copy
 import errno
 import difflib
 import hashlib
@@ -1150,6 +1151,7 @@ class AgentBridge:
                 return self.status()
             require((self.state.get('active') or {}).get('stage') == 'promote' and self.state.get('promotion'),
                     'only journaled promotion can be recovered; inspect other unfinished stages')
+            uncertain_state = copy.deepcopy(self.state)
             self.guard()
             result = self.finish_promotion()
             run = self.state['active']['coordinator_run']
@@ -1180,9 +1182,16 @@ class AgentBridge:
                 self.transition(run, 'result', artifact=str(path), sha256=digest(path),
                                 evidence_ref=str(journal), outcome_ref='reconciled-promotion')
             self.state['records'].append({'path': str(path.relative_to(self.root)), 'sha256': digest(path), 'coordinator_run': run})
-            self.fresh()  # Do not persist completion if the promoted source or evidence changed.
-            self.state.update(active=None, status='completed_advisory', reason=None)
-            return self._completed_status()
+            try:
+                self.fresh()  # Do not persist completion if the promoted source or evidence changed.
+                self.state.update(active=None, status='completed_advisory', reason=None)
+                return self._completed_status()
+            except Exception:
+                # If a final post-save check fails, restore the durable journal
+                # and active uncertain state so status cannot report completion.
+                self.state = uncertain_state
+                self.save()
+                raise
 
     def repair(self, directory, launched):
         result = self.agent('builder', directory, launched)

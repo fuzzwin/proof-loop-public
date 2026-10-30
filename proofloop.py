@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -382,6 +382,10 @@ def append_baseline_history(root: Path, run_id: str, baseline_path: Path) -> str
 
 
 def cmd_start(args):
+    return _start_run(args)
+
+
+def _start_run(args, *, lock_held=False, recheck=None):
     root = project_root(args.root)
     base = proof_root(root)
     if not base.is_dir():
@@ -423,7 +427,7 @@ def cmd_start(args):
             raise ValueError(f"capability {cap_id} is not selectable after policy/lifecycle filtering (policy={cap.get('policy')}, lifecycle={cap.get('lifecycle')})")
         decisions.append({"id": cap_id, "decision": "selected" if cap_id in selected else "excluded", "policy": cap.get("policy"), "lifecycle": cap.get("lifecycle"), "reason": "policy allow and lifecycle tested/enabled" if cap_id in selected else "explicitly excluded by Run Card"})
 
-    with project_lock(root):
+    with (nullcontext() if lock_held else project_lock(root)):
         runs = base / "runs"
         if runs.is_symlink():
             raise ValueError(".proof/runs must not be a symlink")
@@ -462,6 +466,9 @@ def cmd_start(args):
                 "required_checks": args.check, "repair_rounds_allowed": 2,
                 "worker_limit": 3, "verification_mode": "independent" if args.risk in {"medium", "high", "critical"} else "fast_checks_with_independent_review_if_scope_requires",
             }
+            if recheck is not None:
+                card["recheck_parent"] = recheck["run_id"]
+                card["recheck_parent_card_sha256"] = recheck["card_sha256"]
             write_json(stage / "run-card.json", card, exclusive=True)
             baseline_hash = hashlib.sha256(canonical_json(baseline).encode()).hexdigest()
             receipt = {
@@ -480,13 +487,15 @@ def cmd_start(args):
                 "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
                 "execution_observations": {"cli_invocations": None, "spend": None, "note": "Unknown until measured; do not invent observations."},
             }
+            if recheck is not None:
+                receipt["repair_rounds_used"] = recheck["repair_rounds_used"]
             write_json(stage / "receipt.json", receipt, exclusive=True)
             write_json(baseline_path, baseline, exclusive=True, mode=0o400)
             history_baseline_hash = append_baseline_history(root, run_id, baseline_path)
             if history_baseline_hash != sha256(baseline_path):
                 raise ValueError("baseline history hash did not match stored baseline")
             os.rename(stage, dest)
-            append_event(root, run_id, "started", run_card=f"{PROOF_DIR}/runs/{run_id}/run-card.json", input_count=len(inputs), acceptance_baseline_sha256=history_baseline_hash)
+            append_event(root, run_id, "started", run_card=f"{PROOF_DIR}/runs/{run_id}/run-card.json", input_count=len(inputs), acceptance_baseline_sha256=history_baseline_hash, run_card_sha256=sha256(dest / "run-card.json"), recheck_parent=card.get("recheck_parent"), repair_rounds_used=receipt["repair_rounds_used"])
             print(canonical_json(card), end="")
             return 0
         except Exception:
@@ -494,6 +503,65 @@ def cmd_start(args):
                 import shutil
                 shutil.rmtree(stage, ignore_errors=True)
             raise
+
+
+def cmd_recheck(args):
+    """Freeze the current candidate into a new run without refreshing criteria."""
+    root = project_root(args.root)
+    with project_lock(root):
+        parent = run_dir(root, args.run_id)
+        card_path = parent / "run-card.json"
+        card, receipt = load_json(card_path), load_json(parent / "receipt.json")
+        manifest_path = parent / "input-manifest.json"
+        manifest = load_json(manifest_path)
+        if not all(isinstance(v, dict) for v in (card, receipt, manifest)):
+            raise ValueError("parent run files must be objects")
+        if card.get("run_id") != args.run_id or receipt.get("run_id") != args.run_id:
+            raise ValueError("parent run identity mismatch")
+        if receipt.get("run_state") not in {"in_progress", "failed", "blocked", "passed_for_scope"}:
+            raise ValueError("parent run is cancelled, superseded, or uncertain")
+        rows = events(root)
+        if any(row.get("recheck_parent") == args.run_id for row in rows):
+            raise ValueError("parent already has a recheck; continue from its child")
+        starts = [r for r in rows if r.get("run_id") == args.run_id and r.get("event") == "started"]
+        if len(starts) != 1:
+            raise ValueError("parent start attribution is missing or ambiguous")
+        if starts[0].get("run_card_sha256") != sha256(card_path):
+            raise ValueError("parent card changed or predates recheck binding; inspect and start a separately reviewed run")
+        if receipt.get("input_manifest_sha256") != sha256(manifest_path):
+            raise ValueError("parent input manifest changed")
+        baseline, errors = baseline_history_state(root, args.run_id)
+        if errors or baseline is None:
+            raise ValueError("parent acceptance baseline is invalid: " + "; ".join(errors))
+        accepted = baseline["acceptance_tests"]
+        if manifest.get("acceptance_tests") != accepted or snapshot(root, list(accepted)) != accepted:
+            raise ValueError("frozen acceptance tests changed; recheck cannot redefine success")
+        if card.get("input_files") != list(manifest.get("inputs", {})) or card.get("acceptance_test_files") != list(accepted):
+            raise ValueError("parent card/manifest paths disagree")
+        mode = card.get("acceptance_mode")
+        if mode not in {"advisory", "acceptance_required"} or receipt.get("acceptance_mode") != mode:
+            raise ValueError("parent acceptance mode mismatch")
+        if mode == "advisory" and args.baseline_pin:
+            raise ValueError("an advisory recheck cannot acquire acceptance mode")
+        if mode == "acceptance_required":
+            _, pin, digest = load_trusted_acceptance_pin(root, args.baseline_pin, accepted)
+            if digest != card.get("baseline_pin_sha256") or pin.get("approved_run_card_sha256") != sha256(card_path):
+                raise ValueError("parent requires its original reviewer-approved pin")
+        used = receipt.get("repair_rounds_used")
+        budget_values = [starts[0].get("repair_rounds_used", 0)] + [r.get("round", 0) for r in rows if r.get("run_id") == args.run_id and r.get("event") == "repair_started"]
+        if any(type(v) is not int or not 0 <= v <= 2 for v in budget_values):
+            raise ValueError("parent repair ledger is malformed")
+        observed = max(budget_values)
+        if type(used) is not int or not 0 <= used <= 2 or used != observed:
+            raise ValueError("parent repair budget is invalid or disagrees with ledger")
+        fresh = argparse.Namespace(root=str(root), run_id=args.new_run_id,
+            goal=card["goal"], scope=card["scope"], playbook=card["playbook"], risk=card["risk"],
+            done=card["done_when"], check=card["required_checks"], input=card["input_files"],
+            acceptance_test=list(accepted), advisory=mode == "advisory", baseline_pin=args.baseline_pin,
+            use_capability=card["capabilities_selected"], exclude_capability=card["capabilities_excluded"],
+            assumption=card["assumptions"])
+        return _start_run(fresh, lock_held=True, recheck={"run_id": args.run_id,
+            "card_sha256": sha256(card_path), "repair_rounds_used": used})
 
 
 def baseline_history_state(root: Path, run_id: str):
@@ -602,7 +670,7 @@ def _cmd_resume_locked(args):
     receipt = load_json(run_dir(root, selected) / "receipt.json")
     result = receipt.get("run_state")
     if freshness["stale"]:
-        next_action = "refresh inputs, rerun required checks, and replace the receipt evidence"
+        next_action = "use proofloop recheck with a new run ID, rerun checks, then complete the new receipt; keep the original evidence"
     elif result == "in_progress":
         next_action = "complete the receipt, then run proofloop validate"
     elif result in {"failed", "blocked"}:
@@ -733,12 +801,16 @@ def cmd_repair(args):
     receipt_path = rdir / "receipt.json"
     expected = sha256(receipt_path)
     receipt = load_json(receipt_path)
+    if any(row.get("recheck_parent") == args.run_id for row in events(root)):
+        raise ValueError("run already has a recheck; repair its child instead")
     used = int(receipt.get("repair_rounds_used", 0))
     if used >= 2:
         receipt["run_state"] = "blocked"
         receipt.setdefault("exceptions", []).append({"type": "repair_limit", "detail": "Two repair rounds were already used; further repair requires an explicit human decision."})
         receipt["revision"] = int(receipt.get("revision", 0)) + 1
         with project_lock(root):
+            if any(row.get("recheck_parent") == args.run_id for row in events(root)):
+                raise ValueError("run already has a recheck; repair its child instead")
             if sha256(receipt_path) != expected:
                 raise ValueError("stale receipt; concurrent write changed this run")
             write_json(receipt_path, receipt, expected_sha256=expected)
@@ -750,6 +822,8 @@ def cmd_repair(args):
     receipt["run_state"] = "in_progress"
     receipt["revision"] = int(receipt.get("revision", 0)) + 1
     with project_lock(root):
+        if any(row.get("recheck_parent") == args.run_id for row in events(root)):
+            raise ValueError("run already has a recheck; repair its child instead")
         if sha256(receipt_path) != expected:
             raise ValueError("stale receipt; concurrent write changed this run")
         write_json(receipt_path, receipt, expected_sha256=expected)
@@ -1028,6 +1102,10 @@ def parser():
     start.add_argument("--check", action="append", required=True, help="required check name; repeat for each gate check")
     start.add_argument("--input", action="append", default=[]); start.add_argument("--acceptance-test", action="append", required=True); mode = start.add_mutually_exclusive_group(); mode.add_argument("--baseline-pin", help="externally governed acceptance hash pin outside the project"); mode.add_argument("--advisory", action="store_true", help="allow low-risk work without acceptance pin; the run can never be accepted as passed_for_scope"); start.add_argument("--run-id")
     start.set_defaults(func=cmd_start)
+    recheck = sub.add_parser("recheck", help="freeze repaired inputs in a new run with unchanged acceptance criteria")
+    recheck.add_argument("--root", required=True); recheck.add_argument("--run-id", required=True)
+    recheck.add_argument("--new-run-id", required=True); recheck.add_argument("--baseline-pin")
+    recheck.set_defaults(func=cmd_recheck)
     status = sub.add_parser("status", help="show persisted run status")
     status.add_argument("--root", required=True); status.add_argument("--run-id", required=True); status.set_defaults(func=cmd_status)
     resume = sub.add_parser("resume", help="summarize state and next action")

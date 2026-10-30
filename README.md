@@ -58,6 +58,8 @@ A receipt does not authenticate the reviewer or establish the truth of arbitrary
 - [One-request workflow](ONE-REQUEST-WORKFLOW.md), [agent bridge](AGENT-BRIDGE.md), and [saved-run status](AGENT-STATUS-GUIDE.md)
 - [Validation limits](VALIDATION-STATUS.md), [release status](RELEASE-STATUS.md), and [MIT license](LICENSE)
 
+After repairing a declared input, use the [recheck workflow](HOW-TO.md#repair-and-recheck-a-changed-candidate) to create a fresh run while preserving the original criteria, evidence and repair usage. The [scoped skill review evaluator](SKILL-ACCEPTANCE.md) binds behavioral observations to a candidate for a separate reviewer decision. It does not expand portable receipt acceptance. A reusable [Codex workflow skill](templates/codex/.agents/skills/proof-loop-workflow/SKILL.md) is included for explicit invocation and proportionate checks.
+
 ```sh
 python3 -B -m unittest discover -s tests -v
 python3 -B pilot/acceptance.py

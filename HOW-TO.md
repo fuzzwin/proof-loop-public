@@ -109,6 +109,42 @@ python3 proofloop repair --root /path/to/project --run-id RUN_ID --reason "Corre
 
 The first two calls record rounds 1 and 2. A third call records `blocked` and exits 3; no third repair begins. `close` with `--root`, `--run-id`, `--state` (cancelled, superseded, failed or blocked), and `--reason` records a terminal non-pass state. `proofloop observe` stores user-reported invocation/spend observations; the CLI does not pretend to enforce budgets.
 
+## Repair and recheck a changed candidate
+
+A drift check can pass after a repair while the old receipt is stale: the repaired
+view no longer matches its original input manifest. Keep the old run and its
+failed logs. Create a fresh candidate run with the same requirements:
+
+```sh
+python3 proofloop repair --root /path/to/project --run-id trial --reason "Correct the generated view"
+# Make the scoped repair, then freeze its current files:
+python3 proofloop recheck --root /path/to/project --run-id trial --new-run-id trial-recheck
+python3 proofloop drift --root /path/to/project --run-id trial-recheck \
+  --source fixtures/records.json --view reports/result.json \
+  --log .proof/runs/trial-recheck/logs/drift.json
+```
+
+The example inherits advisory mode when `trial` was advisory. Acceptance-required
+runs must also pass their original reviewer-controlled `--baseline-pin` to
+`recheck`. The parent pin must still approve the parent's exact Run Card. A
+reviewer must inspect and approve the **new** card before its receipt can pass;
+`recheck` never writes to the pin or approves its own scope.
+
+`recheck` preserves goal, scope, criteria, checks, risk, capability selections and
+assumptions, and carries the number of used repairs. It starts with empty check
+results and a fresh input manifest. Complete the new receipt from its new logs
+and run `validate` for that new run. This is a fresh candidate snapshot, not
+acceptance or automatic redispatch. At most two repairs apply across the chain.
+Continue from the child: a parent with a recheck cannot branch or start another
+repair. Old run files and evidence remain unchanged.
+
+Changed acceptance files, altered parent cards/manifests, invalid budgets,
+cancelled or uncertain states, symlinks and duplicate IDs are refused. Recheck
+requires the start-time card binding written by this version; legacy cards
+without it require inspection and a separately reviewed new run. It does not
+retroactively trust old metadata. As elsewhere, local hashes and ledger records
+are consistency checks and do not protect against coordinated same-user edits.
+
 ## Codex setup (project scope)
 
 Copy `templates/codex/AGENTS.md` to the project root and `templates/codex/.agents/skills/proof-loop-intake/` into the project. Review and adapt these opt-in instructions. They ask Codex to consult `.proof/`, produce a Run Card, and finish with explicit local receipt validation. No hooks or agents are installed by this bundle.

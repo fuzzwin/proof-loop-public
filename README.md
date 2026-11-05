@@ -51,6 +51,18 @@ equivalence of timestamps, ownership, ACLs, inode identity, external services or
 
 A receipt does not authenticate the reviewer or establish the truth of arbitrary evidence. Same-user pins demonstrate consistency only. The toolkit provides no OS confinement, autonomous truth verification, global installation, or production certification.
 
+## See the workflow
+
+```mermaid
+flowchart LR
+  A["Frozen scope and checks"] --> B["Isolated candidate"]
+  B --> C["Check and repair within limits"]
+  C --> D["Fresh verifier and final checks"]
+  D --> E["Verified diff or explicit blocker"]
+```
+
+This shows the optional one-request path, not portable receipt acceptance. Explore [five workflow examples](FLOW-EXAMPLES.md): code repair, multi-domain checks, preserved repair history, replay and scoped skill review. Each explains what its result does and does not establish.
+
 ## Guides and checks
 
 - [First-run guide](HOW-TO-USE.md) and [detailed receipt workflow](HOW-TO.md)

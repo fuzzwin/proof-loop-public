@@ -1,5 +1,17 @@
 # Test status
 
+## Repair/recheck and scoped skill review: recorded 30 October 2026 UTC
+
+[Merged PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4) reports **297 regression tests and 20 protected status acceptance tests passed**, along with clean-start/harness smoke checks and standard skill validation, on macOS arm64 with CPython 3.14.3. It also reports a fresh independent agent review with focused compatibility/negative cases and a synthetic repair/recheck/approval flow.
+
+The reviewed tree was `66b7c6724f7a3955a2825c16583769ef5d566db7`. GitHub's commit record confirms that public merge commit [`eb7d7f12d6b3ebb5bddb8296eff51bdb6ad60af2`](https://github.com/fuzzwin/proof-loop-public/commit/eb7d7f12d6b3ebb5bddb8296eff51bdb6ad60af2) points to that tree. This section was reconciled from existing records on 5 November 2026 UTC; no tests or model calls were rerun for this documentation update. Raw reviewer logs are not included in the distribution.
+
+- [Recheck regressions](tests/test_recheck.py) cover fresh child manifests, preserved parent evidence/criteria, carried repair usage, rejected metadata/criteria changes and required approval of the new Run Card.
+- [Skill packet regressions](tests/test_skill_acceptance.py) distinguish packet consistency, exact attributed approval and portable acceptance; tampered/missing/duplicate evidence and unsafe paths fail closed.
+- The reusable [workflow skill](templates/codex/.agents/skills/proof-loop-workflow/SKILL.md) instructs explicit CLI invocation when available. Passing its static validation does not establish arbitrary task behavior.
+
+The counts above describe this snapshot; do not add them to earlier suites. These are scoped reported local results, not new Linux/Windows qualification, authenticated independent custody or production acceptance. See [workflow examples and result meanings](FLOW-EXAMPLES.md).
+
 ## General harness candidate — 2026-10-28
 
 The general harness adds tests that exercise actual local subprocesses with explicitly synthetic

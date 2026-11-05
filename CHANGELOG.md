@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased: preserved rechecks and scoped skill reviews
+
+Merged in [PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4) on 30 October 2026 UTC. `proofloop recheck` freezes a new candidate while preserving criteria, prior evidence and repair usage. Changed criteria, unbound legacy cards and reset repair budgets are rejected; acceptance-required child cards need fresh external approval. Add a read-only skill packet evaluator and reusable explicit-invocation Codex workflow skill. Packet consistency, attributed case approval and portable acceptance remain separate. Core version remains 0.2.2; pin the commit. See [test evidence](TEST-STATUS.md) and [visual examples](FLOW-EXAMPLES.md).
+
 ## Unreleased — general task harness
 
 Add versioned task contracts, separate verification and validation results,

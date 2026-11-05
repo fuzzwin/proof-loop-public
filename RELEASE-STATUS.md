@@ -23,3 +23,10 @@ agent sessions checked the integration and its final recovery diagnostic at sour
 `8a69dbbafc0c593c2a803f345ad6f86a8b80a05f`; see test status for the exact coverage.
 
 The experimental native agent bridge is opt-in. Advisory completion does not establish production acceptance, reviewer identity, OS confinement, universal compatibility, or automatic host activation. Source, tests, schemas and synthetic fixtures are included; historical project payloads and runtime evidence are excluded.
+
+## Recheck and scoped skill review
+
+Public [PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4), merged as [`eb7d7f12`](https://github.com/fuzzwin/proof-loop-public/commit/eb7d7f12d6b3ebb5bddb8296eff51bdb6ad60af2) on 30 October 2026 UTC, adds preserved repair/recheck lineage, a read-only skill review packet evaluator and an opt-in Codex workflow skill. Recheck carries the original criteria and used repairs into a fresh candidate run; it never approves its own new card. Skill packet approval is attributed to exact declared cases and leaves portable acceptance `not_accepted`.
+
+The CLI remains 0.2.2, so pin the source commit to identify these features. [Test status](TEST-STATUS.md#repairrecheck-and-scoped-skill-review-recorded-30-october-2026-utc) records the reported 297-test snapshot and its limits. This documentation reconciliation adds no implementation, host activation or new execution evidence.
+

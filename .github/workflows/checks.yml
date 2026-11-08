@@ -1,0 +1,66 @@
+# Manual source checks, following CI-PROPOSAL.md steps 1-3.
+# Runs only when a maintainer starts it. Read-only token, no secrets,
+# no deployment, bounded time. Each platform/runtime reports separately.
+# Results qualify the checked commit on the listed runners only; they are
+# not release approval or portable receipt acceptance.
+name: Source checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Exact commit SHA or tag to check (blank = the selected branch head)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-checks-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    name: Documentation links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - name: Check local Markdown links
+        run: python3 -B tools/check_links.py
+
+  suite:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Record runtime and commit
+        run: |
+          python -c "import platform, sys; print(sys.version); print(platform.platform())"
+          git rev-parse HEAD
+      - name: CLI version
+        run: python -B proofloop --version
+      - name: Clean-start smoke
+        run: python -B tools/clean_start_smoke.py
+      - name: Harness smoke
+        run: python -B tools/harness_smoke.py
+      - name: Regression suite
+        run: python -B -m unittest discover -s tests -v
+      - name: Protected status acceptance
+        run: python -B pilot/acceptance.py

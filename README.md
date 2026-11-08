@@ -9,7 +9,7 @@ own local agent adapter through the documented JSON protocol.
 
 ## Start here
 
-You need a local Python runtime (source targets Python 3.10+), a terminal, and permission to read and write your chosen project. No package installation, account, model, or network connection is required for the core or synthetic checks. Extract the source bundle, open a terminal in its folder, then run:
+You need a local Python runtime (source targets Python 3.10+), a terminal, and permission to read and write your chosen project. No package installation, account, model, or network connection is required for the core or synthetic checks. Clone or download this repository, open a terminal in its folder, then run:
 
 ```sh
 python3 proofloop --version
@@ -68,7 +68,7 @@ This shows the optional one-request path, not portable receipt acceptance. Explo
 - [First-run guide](HOW-TO-USE.md) and [detailed receipt workflow](HOW-TO.md)
 - [When to use it](WHEN-TO-USE.md) and [synthetic scenarios](examples/learning/CASE-STUDIES.md)
 - [One-request workflow](ONE-REQUEST-WORKFLOW.md), [agent bridge](AGENT-BRIDGE.md), and [saved-run status](AGENT-STATUS-GUIDE.md)
-- [Validation limits](VALIDATION-STATUS.md), [release status](RELEASE-STATUS.md), and [MIT license](LICENSE)
+- [Validation limits](VALIDATION-STATUS.md), [security policy](SECURITY.md), [release status](RELEASE-STATUS.md), and [MIT license](LICENSE)
 
 After repairing a declared input, use the [recheck workflow](HOW-TO.md#repair-and-recheck-a-changed-candidate) to create a fresh run while preserving the original criteria, evidence and repair usage. The [scoped skill review evaluator](SKILL-ACCEPTANCE.md) binds behavioral observations to a candidate for a separate reviewer decision. It does not expand portable receipt acceptance. A reusable [Codex workflow skill](templates/codex/.agents/skills/proof-loop-workflow/SKILL.md) is included for explicit invocation and proportionate checks.
 

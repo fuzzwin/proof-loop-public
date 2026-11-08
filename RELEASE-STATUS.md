@@ -31,3 +31,6 @@ Public [PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4), merged as [
 
 Version 0.3.0 releases these features. [Test status](TEST-STATUS.md#repairrecheck-and-scoped-skill-review-recorded-30-october-2026-utc) records the reported 297-test snapshot and its limits.
 
+## 0.3.0 release checks
+
+On 8 November 2026 UTC the release commit was compared with the previous 0.2.2 head on Linux x86_64 with CPython 3.11–3.13. All shared tests kept their outcomes, and the added Linux ACL and release-consistency tests passed. These were checks by the same agent session that made the changes, not independent review; see [test status](TEST-STATUS.md#030-linux-checks-and-ab-comparison-recorded-8-november-2026-utc) for scope and limits.

@@ -1,5 +1,25 @@
 # Test status
 
+## 0.3.0 Linux checks and A/B comparison: recorded 8 November 2026 UTC
+
+The source tree of the `release: Proof Loop 0.3.0` commit, `d1d12b9c2ab953c8001af9052b25876200769389`, was compared with the previous public head `5dc531412d34f991b44d3411c6a85062e32b7254` (CLI 0.2.2) in the same environment: Linux 6.18 x86_64, ext4, CPython 3.11.18, 3.12.3 and 3.13.18. Each run used a fresh copy of the source and the five documented commands.
+
+| Check, per Python version | 0.2.2 baseline | 0.3.0 |
+| --- | --- | --- |
+| `proofloop --version` | Proof Loop 0.2.2 | Proof Loop 0.3.0 |
+| Clean-start and harness smokes | passed | passed |
+| Regression suite | 297 run, 0 failed, 5 skipped | 310 run, 0 failed, 5 skipped |
+| Protected status acceptance | 20 passed | 20 passed |
+
+All 297 shared regression tests had the same outcome in both versions on every runtime. The 13 added tests passed: 10 Linux POSIX ACL regressions and 3 release-consistency checks. The 5 skips on both sides are the macOS extended-ACL regressions.
+
+- **Why the Linux ACL tests were added.** With the Linux branch of the ACL detection or clearing code changed to never detect an ACL, ignore default ACLs, skip clearing, or swallow inspection errors, the 297-test suite still passed on Linux. The new tests failed for each of those four changes.
+- **Version migration.** With both CLIs on a synthetic project: the 0.3.0 validator rejected a 0.2.2 receipt on `checker_version`, and 0.3.0 `recheck` of a 0.2.2 run created a 0.3.0 child with the parent's criteria and one used repair round. Its drift log recorded runner version 0.3.0 and validation reported no version errors.
+- **Python 3.10 and 3.14** were not run; only a static parse found no syntax or standard-library use newer than 3.10. The macOS behavior of the new tests was simulated (all skip), not run on macOS.
+- **The manual workflow** in `.github/workflows/checks.yml` has been parsed but not yet run on GitHub runners.
+
+These checks and the changes were made in one AI agent session, so they are not independent review. Live native Codex trials, Linux ACL models other than POSIX ACLs on ext4, network filesystems, and Windows remain untested. Raw logs are not included.
+
 ## Repair/recheck and scoped skill review: recorded 30 October 2026 UTC
 
 [Merged PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4) reports **297 regression tests and 20 protected status acceptance tests passed**, along with clean-start/harness smoke checks and standard skill validation, on macOS arm64 with CPython 3.14.3. It also reports a fresh independent agent review with focused compatibility/negative cases and a synthetic repair/recheck/approval flow.

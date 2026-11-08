@@ -1,13 +1,14 @@
 # Release status
 
-This is the public Proof Loop source distribution, prepared from implementation baseline `85e4f51963d346ec0703123e5545a2e81c4f7e26`, with MIT licensing, synthetic examples and first-run documentation. The CLI identifies as version 0.2.2.
+This is the public Proof Loop source distribution, prepared from implementation baseline `85e4f51963d346ec0703123e5545a2e81c4f7e26`, with MIT licensing, synthetic examples and first-run documentation. The CLI identifies as version 0.3.0, which releases the features described below; before 0.3.0 they were published under CLI 0.2.2 and identified only by commit.
 
 This source adds the optional [one-request workflow](ONE-REQUEST-WORKFLOW.md), isolated
 candidates, final check reruns, exact requirement/test coverage, and journaled promotion
 recovery. New native runs use state schema 3; `agent-status` can inspect schemas 1, 2 and 3.
 Schema-2 observations are indeterminate because that draft format lacks permission evidence.
 Legacy runs are never silently migrated or resumed by the new execution host. The portable
-receipt schema and core CLI version remain unchanged. Pin the source commit for this feature.
+receipt rules are unchanged, but receipts and drift runner logs record the CLI version, so
+0.2.2 evidence must be regenerated under 0.3.0; see the [changelog](CHANGELOG.md).
 
 Historical version 0.2.0 is withdrawn for acceptance because failed runner evidence could be accepted after receipt edits. Version 0.2.1 also had reproduced false-pass cases. This distribution includes later corrections; rerun older checks rather than relabeling evidence.
 
@@ -28,5 +29,5 @@ The experimental native agent bridge is opt-in. Advisory completion does not est
 
 Public [PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4), merged as [`eb7d7f12`](https://github.com/fuzzwin/proof-loop-public/commit/eb7d7f12d6b3ebb5bddb8296eff51bdb6ad60af2) on 30 October 2026 UTC, adds preserved repair/recheck lineage, a read-only skill review packet evaluator and an opt-in Codex workflow skill. Recheck carries the original criteria and used repairs into a fresh candidate run; it never approves its own new card. Skill packet approval is attributed to exact declared cases and leaves portable acceptance `not_accepted`.
 
-The CLI remains 0.2.2, so pin the source commit to identify these features. [Test status](TEST-STATUS.md#repairrecheck-and-scoped-skill-review-recorded-30-october-2026-utc) records the reported 297-test snapshot and its limits. This documentation reconciliation adds no implementation, host activation or new execution evidence.
+Version 0.3.0 releases these features. [Test status](TEST-STATUS.md#repairrecheck-and-scoped-skill-review-recorded-30-october-2026-utc) records the reported 297-test snapshot and its limits.
 

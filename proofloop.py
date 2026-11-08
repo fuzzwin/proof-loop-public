@@ -15,7 +15,7 @@ import tempfile
 import time
 from datetime import datetime, timezone, timedelta
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 PROOF_DIR = ".proof"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 

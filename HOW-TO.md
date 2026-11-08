@@ -1,6 +1,6 @@
-# How to use Proof Loop 0.2.2
+# How to use Proof Loop 0.3.0
 
-**Version 0.2.2 source:** older 0.2.0 and 0.2.1 checks have known false-pass cases. Rerun existing checks and produce fresh receipts with 0.2.2; do not edit old version/status fields.
+**Version 0.3.0 source:** older 0.2.0 and 0.2.1 checks have known false-pass cases, and 0.2.2 receipts and runner logs no longer validate because they record another CLI version. Rerun existing checks, or use `proofloop recheck` on a 0.2.2 run, and produce fresh receipts with 0.3.0; do not edit old version/status fields.
 
 Proof Loop is a project-local workflow. Start each request with a Run Card, freeze declared inputs and acceptance files, perform the scoped work, collect reproducible evidence, request a fresh independent review when the risk tier requires it, and run the receipt validator before treating the result as accepted.
 
@@ -72,7 +72,7 @@ The local baseline and hash chain detect ordinary inconsistent edits. The indepe
 
 ## 3. Run the built-in evidence check
 
-Version 0.2.2 can currently validate only the built-in `source-view-drift` check as Verified evidence. It reads JSON source and generated-view files and writes a new, non-overwriting runner log:
+Version 0.3.0 can currently validate only the built-in `source-view-drift` check as Verified evidence. It reads JSON source and generated-view files and writes a new, non-overwriting runner log:
 
 ```sh
 python3 proofloop drift --root /path/to/project --run-id RUN_ID \

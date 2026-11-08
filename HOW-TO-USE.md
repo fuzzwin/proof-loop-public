@@ -1,6 +1,6 @@
 # How and when to activate the workflow
 
-This entry guide uses the 0.2.2 CLI source. [HOW-TO.md](HOW-TO.md) retains the detailed receipt/pin procedure. No command from a separate Windows implementation is assumed here.
+This entry guide uses the 0.3.0 CLI source. [HOW-TO.md](HOW-TO.md) retains the detailed receipt/pin procedure. No command from a separate Windows implementation is assumed here.
 
 For code fixes with a configured Codex host, start with the [one-request workflow](ONE-REQUEST-WORKFLOW.md).
 Configure project files and trusted checks once, then use `fix --request` to receive a checked

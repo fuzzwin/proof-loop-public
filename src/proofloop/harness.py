@@ -2,9 +2,9 @@
 import json
 import uuid
 
-import agent_bridge as bridge
-import harness_checks as checks
-from coordinator import require
+from . import bridge
+from . import checks as checks
+from .coordinator import require
 
 TASK_FIELDS = {'schema_version', 'goal', 'files', 'editable', 'protected', 'requirements',
                'checks', 'specialists', 'limits', 'host'}

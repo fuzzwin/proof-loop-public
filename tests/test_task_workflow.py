@@ -14,8 +14,8 @@ import unittest
 from unittest import mock
 from urllib.parse import unquote
 
-import agent_bridge as bridge
-import task_workflow as tasks
+from proofloop import bridge
+from proofloop import task_workflow as tasks
 from test_agent_bridge import ScriptedHost
 
 
@@ -415,7 +415,7 @@ class TaskWorkflowTests(unittest.TestCase):
 
     def test_cli_without_profile_emits_structured_blocker(self):
         (self.root / 'proofloop-project.json').unlink()
-        executable = Path(tasks.__file__).with_name('proofloop')
+        executable = Path(__file__).resolve().parents[1] / 'proofloop'
         result = subprocess.run(['python3', '-B', str(executable), 'fix', '--root', str(self.root),
                                  '--request', 'Fix VALUE.', '--json'], capture_output=True, text=True)
         self.assertEqual(2, result.returncode, result.stderr)

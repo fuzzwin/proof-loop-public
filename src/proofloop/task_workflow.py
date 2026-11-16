@@ -11,9 +11,9 @@ from pathlib import Path
 import sys
 import uuid
 
-import agent_bridge as bridge
-import proofloop as core
-from coordinator import require
+from . import bridge
+from . import core
+from .coordinator import require
 
 
 DEFAULT_LIMITS = {'max_repairs': 2, 'max_agent_calls': 6, 'agent_timeout_seconds': 180,

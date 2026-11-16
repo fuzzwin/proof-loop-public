@@ -43,3 +43,10 @@ jobs:
         run: python -B tools/clean_start_smoke.py
       - name: Harness smoke
         run: python -B tools/harness_smoke.py
+      - name: Installed CLI contract
+        run: |
+          python -m venv "$RUNNER_TEMP/proofloop-package"
+          venv="$RUNNER_TEMP/proofloop-package"
+          "$venv/bin/python" -m pip install .
+          PROOFLOOP_TEST_INSTALLED_CLI="$venv/bin/proofloop" \
+            "$venv/bin/python" -B -m unittest discover -s tests -p test_cli_contract.py -v

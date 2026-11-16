@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from agent_bridge import AgentBridge
+from proofloop.bridge import AgentBridge
 
 
 @unittest.skipUnless(os.name == 'posix', 'POSIX bridge only')

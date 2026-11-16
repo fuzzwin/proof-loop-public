@@ -10,7 +10,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from coordinator import canonical, digest, require
+from .coordinator import canonical, digest, require
 
 
 def stable_hash(value):

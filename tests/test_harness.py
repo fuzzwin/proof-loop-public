@@ -12,9 +12,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import agent_bridge as bridge
-import harness
-import harness_checks as checks
+from proofloop import bridge
+from proofloop import harness
+from proofloop import checks as checks
 
 SOURCE = Path(__file__).resolve().parents[1]
 HOST = '''import json,sys,uuid

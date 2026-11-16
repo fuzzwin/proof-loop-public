@@ -9,7 +9,7 @@ import time
 import unittest
 from unittest import mock
 
-from agent_bridge import BridgeStop, CodexHost, ProcessRunner, schema_for
+from proofloop.bridge import BridgeStop, CodexHost, ProcessRunner, schema_for
 
 
 FAKE_PROGRAM = r'''
@@ -288,7 +288,7 @@ class CodexHostProtocolTests(unittest.TestCase):
         self.assertIn('synthetic diagnostic', (self.directory / 'stderr.log').read_text())
 
     def test_real_process_output_is_bounded(self):
-        with mock.patch('agent_bridge.MAX_LOG_BYTES', 512):
+        with mock.patch('proofloop.bridge.MAX_LOG_BYTES', 512):
             with self.assertRaisesRegex(ValueError, 'output limit'):
                 self.run_case({'raw': 'synthetic output ' * 100})
 

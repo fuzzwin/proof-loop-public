@@ -21,6 +21,11 @@ Use your system's Python command if it differs, such as `python` or `py -3`. The
 
 Next, follow [the first-run guide](HOW-TO-USE.md) to declare your own task, evidence files, acceptance criteria, and permitted writes. Keep project data outside this toolkit. Preserve existing project instructions when adding templates.
 
+To install the command into an active virtual environment, run
+`python -m pip install .` from the checkout. Then run `proofloop --version`
+or use `proofloop` with the same arguments as `python3 proofloop`. The
+installed package has no third-party runtime dependencies.
+
 ## Describe a fix once
 
 With the optional Codex workflow and a configured project profile:

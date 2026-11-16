@@ -22,8 +22,8 @@ import unicodedata
 import uuid
 from urllib.parse import quote
 
-import proofloop as core
-from coordinator import Coordinator, canonical as coordinator_canonical, digest, require
+from . import core
+from .coordinator import Coordinator, canonical as coordinator_canonical, digest, require
 
 PLAN_FIELDS = {'goal', 'files', 'editable', 'protected', 'quality', 'specialists',
                'max_repairs', 'max_agent_calls', 'agent_timeout_seconds',

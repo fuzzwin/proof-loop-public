@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from . import core
+from .cli import module_main
 from .coordinator import Coordinator, digest, require
 
 PLAN_FIELDS = {'adapter', 'check', 'source', 'view', 'acceptance_test', 'allow_repair'}
@@ -17,7 +18,7 @@ PLAN_FIELDS = {'adapter', 'check', 'source', 'view', 'acceptance_test', 'allow_r
 
 def core_call(argv):
     with contextlib.redirect_stdout(io.StringIO()):
-        result = core.main(argv)
+        result = module_main(argv)
     require(result == 0, 'core command failed: ' + argv[0])
 
 
@@ -115,7 +116,7 @@ class SyntheticLoop:
         core_call(argv)
         log = f'.proof/runs/{run_id}/logs/source-view-drift.json'
         with contextlib.redirect_stdout(io.StringIO()):
-            code = core.main(['drift', '--root', str(self.root), '--run-id', run_id,
+            code = module_main(['drift', '--root', str(self.root), '--run-id', run_id,
                               '--source', self.plan['source'], '--view', self.plan['view'], '--log', log])
         require(code in (0, 1), 'drift runner did not produce a check')
         result = {'stage': stage, 'core_run': run_id, 'log': log,

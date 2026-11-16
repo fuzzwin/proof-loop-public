@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from proofloop import core
+from proofloop.cli import module_main
 from proofloop.orchestration import SyntheticLoop
 
 
@@ -30,7 +31,7 @@ class ReviewRegressions(unittest.TestCase):
     def call(self, *args):
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            code = core.main(list(map(str, args)))
+            code = module_main(list(map(str, args)))
         return code, stdout.getvalue(), stderr.getvalue()
 
     def start(self, extra=None, acceptance_name='acceptance.json'):

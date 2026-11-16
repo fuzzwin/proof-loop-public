@@ -10,8 +10,7 @@ import time
 import unittest
 from unittest import mock
 
-from proofloop import bridge
-from proofloop import task_workflow as tasks
+from proofloop import bridge, filesystem, status, task_workflow as tasks
 from test_task_workflow import TaskHost
 
 
@@ -43,11 +42,11 @@ class PublicTaskStatusTests(unittest.TestCase):
         return result
 
     def inspect(self):
-        return bridge.read_status(self.root, 'public', '.proof/tasks/public/plan.json')
+        return status.read_status(self.root, 'public', '.proof/tasks/public/plan.json')
 
     def test_completed_task_is_current_without_host_database_or_writes(self):
         result = self.fix()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         with mock.patch.object(bridge, 'AgentBridge', side_effect=AssertionError('execution host')):
             report = self.inspect()
         self.assertEqual({'state': 'current', 'issues': []}, report['freshness'])
@@ -55,7 +54,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual(result['diff'], report['diff'])
         self.assertEqual('TASK', report['verifier']['requirements'][0]['id'])
         self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
 
     def test_current_status_uses_final_recheck_and_completed_replay_spends_nothing(self):
         self.fix()
@@ -64,9 +63,9 @@ class PublicTaskStatusTests(unittest.TestCase):
         final = json.loads((self.root / state['records'][-2]['path']).read_text())
         self.assertTrue(final['stage'].startswith('recheck-'))
         self.assertEqual(final['result']['commands'], report['quality']['commands'])
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         self.fix()
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_changed_source_candidate_profile_and_patch_are_historical(self):
@@ -166,7 +165,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual([], self.host.calls)
 
     def test_unavailable_acl_inspection_blocks_before_dispatch(self):
-        with mock.patch.object(bridge, '_directory_has_acl', side_effect=OSError('ACL unavailable')):
+        with mock.patch.object(filesystem, 'directory_has_acl', side_effect=OSError('ACL unavailable')):
             result = tasks.execute(self.root, 'Make VALUE equal 2.', run_id='acl', host=self.host)
         self.assertEqual('blocked', result['outcome'])
         self.assertIn('ACL unavailable', result['blocker']['reason'])
@@ -197,7 +196,7 @@ class PublicTaskStatusTests(unittest.TestCase):
             fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 self.assertEqual(0, os.fstat(fd).st_mode & 0o077)
-                self.assertFalse(bridge._directory_has_acl(fd))
+                self.assertFalse(filesystem.directory_has_acl(fd))
             finally:
                 os.close(fd)
         self.assertEqual('current', self.inspect()['freshness']['state'])
@@ -213,7 +212,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertIn('has an ACL', result['blocker']['reason'])
         fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
         try:
-            self.assertTrue(bridge._directory_has_acl(fd))
+            self.assertTrue(filesystem.directory_has_acl(fd))
         finally:
             os.close(fd)
         subprocess.run(['/bin/chmod', '-N', str(directory)], check=True)
@@ -425,7 +424,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         loop = bridge.AgentBridge(self.root, 'apply', 'plan.json', host=ApplyHost())
         self.addCleanup(loop.close)
         self.assertEqual('completed_advisory', loop.advance()['state'])
-        report = bridge.read_status(self.root, 'apply', 'plan.json')
+        report = status.read_status(self.root, 'apply', 'plan.json')
         self.assertEqual('current', report['freshness']['state'], report)
         self.assertEqual('apply', report['delivery'])
         self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())

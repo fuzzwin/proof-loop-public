@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-from proofloop import bridge
+from proofloop import bridge, processes, validation
 from test_agent_bridge import ScriptedHost
 
 
@@ -25,11 +25,11 @@ class AdapterTests(unittest.TestCase):
         report = directory / 'tests.json'
         expected = directory / 'expected.json'
         expected.write_text(json.dumps(ids))
-        process = bridge.ProcessRunner().run(
+        process = processes.ProcessRunner().run(
             [sys.executable, '-B', str(Path(bridge.__file__).with_name('unittest_adapter.py')), str(report), str(expected), 'test_sample.py'],
             cwd=self.workspace, directory=directory, timeout=5, cancelled=lambda: False, launched=lambda pid: None)
         result = json.loads(report.read_text())
-        return bridge.validate_test_report(result, {'expected_ids': ids, 'tests': ['test_sample.py']}, process)
+        return validation.validate_test_report(result, {'expected_ids': ids, 'tests': ['test_sample.py']}, process)
 
     def test_skipped_tests_never_pass(self):
         result = self.run_suite("import unittest\nclass T(unittest.TestCase):\n @unittest.skip('not exercised')\n def test_one(self): pass\n", ['test_sample.T.test_one'])

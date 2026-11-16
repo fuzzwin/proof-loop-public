@@ -11,20 +11,19 @@ from pathlib import Path
 import sys
 import uuid
 
-from . import bridge
-from . import core
-from .coordinator import require
+from . import bridge, core, filesystem, validation
+from .coordinator import digest, require
 
 
 DEFAULT_LIMITS = {'max_repairs': 2, 'max_agent_calls': 6, 'agent_timeout_seconds': 180,
                   'check_timeout_seconds': 30, 'max_run_seconds': 600}
-PROFILE_FIELDS = bridge.PLAN_FIELDS - {'goal'}
+PROFILE_FIELDS = validation.PLAN_FIELDS - {'goal'}
 
 
 def read_profile(root, name):
-    name = bridge.relative_name(name)
+    name = filesystem.relative_name(name)
     require((root / name).exists(), 'project profile missing: ' + name)
-    path = bridge.file_path(root, name)
+    path = filesystem.file_path(root, name)
     raw = path.read_bytes()
     profile = json.loads(raw)
     require(isinstance(profile, dict) and set(profile) == {'schema_version', 'plan'} and
@@ -33,25 +32,25 @@ def read_profile(root, name):
     require(isinstance(plan, dict) and PROFILE_FIELDS <= set(plan) and
             set(plan) <= PROFILE_FIELDS | {'test_adapter'}, 'invalid project profile fields')
     if isinstance(plan['editable'], list) and all(isinstance(item, str) for item in plan['editable']):
-        require(all(bridge.normalized_name(name) != bridge.normalized_name(item) for item in plan['editable']),
+        require(all(filesystem.normalized_name(name) != filesystem.normalized_name(item) for item in plan['editable']),
                 'project profile cannot be editable')
-    bridge.validate_plan({**plan, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
+    validation.validate_plan({**plan, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
     for item in plan['editable']:
-        editable = bridge.file_path(root, item, optional=True)
+        editable = filesystem.file_path(root, item, optional=True)
         require(not editable.exists() or not os.path.samefile(path, editable),
                 'project profile cannot be editable through a file alias')
-    expected = bridge.file_map(root, plan['files'])
-    bridge.directory_modes(root, plan['files'])
+    expected = filesystem.file_map(root, plan['files'])
+    filesystem.directory_modes(root, plan['files'])
     require(all(expected[n] is not None for n in set(plan['files']) - set(plan['editable'])),
             'declared noneditable profile files must exist')
     return profile, hashlib.sha256(raw).hexdigest()
 
 
 def initialize_profile(args):
-    root = bridge.checked_project_root(args.root)
-    name = bridge.relative_name(args.profile)
+    root = filesystem.checked_project_root(args.root)
+    name = filesystem.relative_name(args.profile)
     if args.from_plan:
-        plan = bridge.validate_plan(core.load_json(bridge.plan_file(root, args.from_plan)), args.from_plan)
+        plan = validation.validate_plan(core.load_json(filesystem.plan_file(root, args.from_plan)), args.from_plan)
         scope = {k:v for k,v in plan.items() if k not in ('goal', 'requirements', 'delivery')}
     else:
         require(args.editable and args.protected and args.check_json,
@@ -61,17 +60,17 @@ def initialize_profile(args):
                  'editable': editable, 'protected': protected,
                  'quality': [json.loads(value) for value in args.check_json], 'specialists': []}
     profile = {'schema_version': 1, 'plan': scope}
-    require(all(bridge.normalized_name(name) != bridge.normalized_name(item) for item in scope['editable']),
+    require(all(filesystem.normalized_name(name) != filesystem.normalized_name(item) for item in scope['editable']),
             'project profile cannot be editable')
-    bridge.validate_plan({**scope, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
-    expected = bridge.file_map(root, scope['files'])
-    bridge.directory_modes(root, scope['files'])
+    validation.validate_plan({**scope, 'goal': 'Validate project profile.', 'delivery': 'diff'}, name)
+    expected = filesystem.file_map(root, scope['files'])
+    filesystem.directory_modes(root, scope['files'])
     require(all(expected[n] is not None for n in set(scope['files']) - set(scope['editable'])),
             'declared noneditable profile files must exist')
     with core.project_lock(root):
         path = core.safe_write_path(root, name)
         core.write_json(path, profile, exclusive=True)
-    print(core.canonical_json({'profile': str(path), 'sha256': bridge.digest(path),
+    print(core.canonical_json({'profile': str(path), 'sha256': digest(path),
                                'editable': scope['editable'], 'protected': scope['protected'],
                                'next_action': 'Run proofloop fix --root ROOT --request "describe the fix".'}), end='')
     return 0
@@ -86,10 +85,10 @@ def prepare(root, run_id, request, profile_name):
     plan = {**profile['plan'], 'goal': request, 'delivery': 'diff',
             'requirements': [{'id': 'TASK', 'description': request}]}
     plan_name = relative + '/plan.json'
-    bridge.validate_plan(plan, plan_name)
+    validation.validate_plan(plan, plan_name)
     intake_name = relative + '/intake.json'
     with core.project_lock(root):
-        bridge.private_run_directory(root, relative)
+        filesystem.private_run_directory(root, relative)
         intake_path = root / intake_name
         if intake_path.exists():
             intake = core.load_json(core.safe_project_file(root, intake_name))
@@ -105,7 +104,7 @@ def prepare(root, run_id, request, profile_name):
             require(isinstance(intake['evidence'], dict) and set(intake['evidence']) == expected_files,
                     'task intake evidence changed: incomplete file map')
             for name, expected in intake['evidence'].items():
-                require(bridge.digest(core.safe_project_file(root, name)) == expected, 'task intake evidence changed')
+                require(digest(core.safe_project_file(root, name)) == expected, 'task intake evidence changed')
             require(core.load_json(core.safe_project_file(root, plan_name)) == plan and
                     core.load_json(core.safe_project_file(root, relative + '/profile.json')) == profile and
                     (root / relative / 'request.txt').read_bytes() == request.encode(),
@@ -123,7 +122,7 @@ def prepare(root, run_id, request, profile_name):
                                ('plan.json', core.canonical_json(plan).encode())]:
                 path = core.safe_write_path(root, relative + '/' + name)
                 core.atomic_write(path, data, exclusive=True)
-                evidence[relative + '/' + name] = bridge.digest(path)
+                evidence[relative + '/' + name] = digest(path)
             core.write_json(core.safe_write_path(root, intake_name),
                             {'schema_version': 1, 'run_id': run_id, 'request_sha256': request_hash,
                              'profile_path': profile_name, 'profile_sha256': profile_hash, 'evidence': evidence}, exclusive=True)
@@ -186,7 +185,7 @@ def blocker(reason, status=None):
 
 
 def execute(root, request, *, run_id, profile_name='proofloop-project.json', host=None):
-    root = bridge.checked_project_root(root)
+    root = filesystem.checked_project_root(root)
     loop = None
     metadata = {}
     try:
@@ -203,7 +202,7 @@ def execute(root, request, *, run_id, profile_name='proofloop-project.json', hos
         saved = core.load_json(core.safe_project_file(root, record['path']))
         require(saved['stage'] == 'deliver' and saved['result'] == result['diff'], 'delivered diff state differs from frozen evidence')
         patch = core.safe_project_file(root, result['diff']['path'])
-        require(bridge.digest(patch) == result['diff']['sha256'] and
+        require(digest(patch) == result['diff']['sha256'] and
                 result['diff']['candidate_sha256'] == result['candidate_sha256'], 'delivered diff hash/candidate mismatch')
         loop.fresh()
         return {'outcome': 'verified_diff', 'run_id': run_id, **metadata, 'run': result,
@@ -233,10 +232,10 @@ def command(args):
     run_id = args.run_id or ('fix-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6])
     root = None
     try:
-        root = bridge.checked_project_root(args.root)
+        root = filesystem.checked_project_root(args.root)
         request = args.request
         if args.request_file:
-            request = bridge.file_path(root, args.request_file).read_text(encoding='utf-8')
+            request = filesystem.file_path(root, args.request_file).read_text(encoding='utf-8')
         result = execute(root, request, run_id=run_id, profile_name=args.profile)
     except (ValueError, OSError) as exc:
         result = {'outcome': 'blocked', 'run_id': run_id, 'run': None,

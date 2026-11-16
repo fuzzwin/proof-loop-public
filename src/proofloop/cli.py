@@ -69,13 +69,13 @@ def parser():
     agent_run.add_argument("--root", required=True); agent_run.add_argument("--run-id", required=True)
     agent_run.add_argument("--plan", required=True); agent_run.add_argument("--max-steps", type=int, default=100)
     def run_agents(args):
-        from .bridge import command
+        from .bridge_commands import command
         return command(args)
     agent_run.set_defaults(func=run_agents)
     agent_cancel = sub.add_parser("agent-cancel", help="request cancellation without redispatching work")
     agent_cancel.add_argument("--root", required=True); agent_cancel.add_argument("--run-id", required=True)
     def cancel_agents(args):
-        from .bridge import cancel_command
+        from .bridge_commands import cancel_command
         return cancel_command(args)
     agent_cancel.set_defaults(func=cancel_agents)
     for name, help_text in [('agent-preflight', 'inspect plan/runtime dependencies without dispatch'),
@@ -89,9 +89,11 @@ def parser():
         if name == 'agent-recover':
             command.add_argument('--finish-promotion', action='store_true', required=True)
         def bridge_command(args, name=name):
-            from .bridge import preflight_command, status_command, recover_command
-            return {'agent-preflight': preflight_command, 'agent-status': status_command,
-                    'agent-recover': recover_command}[name](args)
+            if name == 'agent-status':
+                from .status import status_command
+                return status_command(args)
+            from .bridge_commands import preflight_command, recover_command
+            return {'agent-preflight': preflight_command, 'agent-recover': recover_command}[name](args)
         command.set_defaults(func=bridge_command)
     profile_init = sub.add_parser('profile-init', help='configure reusable project scope and checks once')
     profile_init.add_argument('--root', required=True)
@@ -170,7 +172,7 @@ def main(argv=None):
     if not argv or argv[0] not in ('agent-status', 'harness-status'):
         return module_main(argv)
 
-    from .bridge import status_command, status_report
+    from .status import status_command, status_report
     if argv[0] == 'harness-status':
         from .harness import status_command
 

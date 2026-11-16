@@ -1,0 +1,94 @@
+{
+  "directories": {
+    ".": 448,
+    ".proof": 493,
+    ".proof/baselines": 448,
+    ".proof/runs": 493,
+    ".proof/runs/demo": 448,
+    ".proof/runs/demo/logs": 493,
+    "fixtures": 493
+  },
+  "files": {
+    ".proof/baselines/demo.json": {
+      "mode": 256,
+      "text": "{\n  \"acceptance_tests\": {\n    \"fixtures/acceptance.json\": {\n      \"bytes\": 37,\n      \"sha256\": \"32560dc6c32b55a28810fbf7d3175159b4cd87d65a2d7b6b3bfb427d2918f6f7\"\n    }\n  },\n  \"created_at\": \"2026-11-16T05:43:19Z\",\n  \"protection\": \"exclusive-create, read-only mode, append-only hash-chained history; same-user edits remain possible\",\n  \"run_id\": \"demo\",\n  \"schema_version\": 1\n}\n"
+    },
+    ".proof/baselines/history.jsonl": {
+      "mode": 384,
+      "text": "{\"baseline_sha256\": \"250fc07eb245d7efdd39eb2b2737997d0baf32e4aae1b25e0a83fe71b068e9a3\", \"entry_sha256\": \"b89f4aff531bc40212139936795101331d56a9a848f89f2ab2809fcef196e6e9\", \"previous_sha256\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"run_id\": \"demo\"}\n"
+    },
+    ".proof/ledger.jsonl": {
+      "mode": 384,
+      "text": "{\"acceptance_baseline_sha256\": \"250fc07eb245d7efdd39eb2b2737997d0baf32e4aae1b25e0a83fe71b068e9a3\", \"at\": \"2026-11-16T05:43:19Z\", \"event\": \"started\", \"input_count\": 3, \"recheck_parent\": null, \"repair_rounds_used\": 0, \"run_card\": \".proof/runs/demo/run-card.json\", \"run_card_sha256\": \"1223b03bedc250724490406f554abe8247fc3f2c3100b856276e33a1184f50e8\", \"run_id\": \"demo\"}\n{\"at\": \"2026-11-16T05:43:19Z\", \"check\": \"source-view-drift\", \"event\": \"check_recorded\", \"log\": \".proof/runs/demo/logs/drift-1.json\", \"run_id\": \"demo\", \"state\": \"pass\"}\n"
+    },
+    ".proof/runs/demo/input-manifest.json": {
+      "mode": 384,
+      "text": "{\n  \"acceptance_tests\": {\n    \"fixtures/acceptance.json\": {\n      \"bytes\": 37,\n      \"sha256\": \"32560dc6c32b55a28810fbf7d3175159b4cd87d65a2d7b6b3bfb427d2918f6f7\"\n    }\n  },\n  \"created_at\": \"2026-11-16T05:43:19Z\",\n  \"inputs\": {\n    \"fixtures/input.json\": {\n      \"bytes\": 23,\n      \"sha256\": \"1a63b78e803651ccee8b8024e040bf57dfcfb72df892e6fa377548ca99304f8b\"\n    },\n    \"fixtures/records.json\": {\n      \"bytes\": 79,\n      \"sha256\": \"f79d6e13597f8c59026be69201ef42c1ba88d2d35725a225324e56986feac25f\"\n    },\n    \"fixtures/view.json\": {\n      \"bytes\": 80,\n      \"sha256\": \"aaf55decc7fbc1feb63df9ccf3c0b30336f31245ffe77700f10aa119d43d7aff\"\n    }\n  },\n  \"schema_version\": 3\n}\n"
+    },
+    ".proof/runs/demo/logs/drift-1.json": {
+      "mode": 384,
+      "text": "{\n  \"actual\": {\n    \"fixture_classification\": \"synthetic\",\n    \"ids\": [\n      \"SYN-1\",\n      \"SYN-2\"\n    ],\n    \"record_count\": 2\n  },\n  \"check\": \"source-view-drift\",\n  \"checked_at\": \"2026-11-16T05:43:19Z\",\n  \"coverage\": [\n    \"record_count\",\n    \"ordered_ids\",\n    \"fixture_classification\"\n  ],\n  \"exit_code\": 0,\n  \"expected\": {\n    \"fixture_classification\": \"synthetic\",\n    \"ids\": [\n      \"SYN-1\",\n      \"SYN-2\"\n    ],\n    \"record_count\": 2\n  },\n  \"reason\": \"generated view matches the declared source projection\",\n  \"run_id\": \"demo\",\n  \"runner\": \"proofloop-drift\",\n  \"runner_version\": \"0.2.2\",\n  \"schema_version\": 2,\n  \"source\": \"fixtures/records.json\",\n  \"source_sha256\": \"f79d6e13597f8c59026be69201ef42c1ba88d2d35725a225324e56986feac25f\",\n  \"state\": \"pass\",\n  \"view\": \"fixtures/view.json\",\n  \"view_sha256\": \"aaf55decc7fbc1feb63df9ccf3c0b30336f31245ffe77700f10aa119d43d7aff\"\n}\n"
+    },
+    ".proof/runs/demo/receipt.json": {
+      "mode": 384,
+      "text": "{\n  \"acceptance_baseline_sha256\": \"250fc07eb245d7efdd39eb2b2737997d0baf32e4aae1b25e0a83fe71b068e9a3\",\n  \"acceptance_mode\": \"acceptance_required\",\n  \"acceptance_tests_sha256\": \"d10ce3fee91abb20bee1eadbf4b61c09ef73c3163bf14b9a53e454044edc1003\",\n  \"baseline_pin_sha256\": \"d10ce3fee91abb20bee1eadbf4b61c09ef73c3163bf14b9a53e454044edc1003\",\n  \"checker_version\": \"0.2.2\",\n  \"checks\": {\n    \"source-view-drift\": {\n      \"state\": \"pass\",\n      \"reason\": \"built-in drift runner recomputed projection\",\n      \"log\": {\n        \"path\": \".proof/runs/demo/logs/drift-1.json\",\n        \"sha256\": \"b8c557c6a720fa005d678382a46aba71535020f12e54e48313b08c131df35841\",\n        \"runner\": \"proofloop-drift\"\n      }\n    }\n  },\n  \"claims\": [\n    {\n      \"label\": \"Verified\",\n      \"claim_type\": \"check_pass\",\n      \"check\": \"source-view-drift\",\n      \"supports_checks\": [\n        \"source-view-drift\"\n      ],\n      \"claim\": \"Check source-view-drift passed.\",\n      \"evidence\": [\n        \".proof/runs/demo/logs/drift-1.json\"\n      ]\n    }\n  ],\n  \"coverage\": {\n    \"checked\": [\n      \"record_count\",\n      \"ordered_ids\",\n      \"fixture_classification\"\n    ],\n    \"not_checked\": [\n      \"external integrations\",\n      \"security isolation\"\n    ]\n  },\n  \"created_at\": \"2026-11-16T05:43:19Z\",\n  \"environment\": {\n    \"platform\": \"macOS-15.8.3-arm64-arm-64bit\",\n    \"python\": \"3.10.16\"\n  },\n  \"exceptions\": [],\n  \"execution_observations\": {\n    \"cli_invocations\": null,\n    \"note\": \"Unknown until measured; do not invent observations.\",\n    \"spend\": null\n  },\n  \"expires_at\": \"2100-01-01T00:00:00Z\",\n  \"human_decision\": \"not_required\",\n  \"independent_review\": {\n    \"status\": \"not_applicable\",\n    \"reviewer\": \"\",\n    \"fresh_context\": false,\n    \"notes\": \"\",\n    \"reason\": \"Synthetic low-risk local fixture.\"\n  },\n  \"input_manifest_sha256\": \"6c51a38a6c62c3163a7391bd78b9374d9233ad07faccf799b470e73668d87201\",\n  \"outputs\": {\n    \"output.txt\": \"6237435190b2b9135c6a7e6f6b3426fd37ab8885da74b141a3e5fd58eaa7ec75\"\n  },\n  \"repair_rounds_used\": 0,\n  \"revision\": 0,\n  \"run_id\": \"demo\",\n  \"run_state\": \"passed_for_scope\",\n  \"schema_version\": 3\n}\n"
+    },
+    ".proof/runs/demo/run-card.json": {
+      "mode": 384,
+      "text": "{\n  \"acceptance_mode\": \"acceptance_required\",\n  \"acceptance_test_files\": [\n    \"fixtures/acceptance.json\"\n  ],\n  \"assumptions\": [],\n  \"baseline_pin_sha256\": \"d10ce3fee91abb20bee1eadbf4b61c09ef73c3163bf14b9a53e454044edc1003\",\n  \"capabilities_excluded\": [],\n  \"capabilities_selected\": [],\n  \"capability_decisions\": [],\n  \"capability_selection_note\": \"Explicit selections are filtered by policy and lifecycle only; descriptive fit/health/ranking fields are not evaluated or executed.\",\n  \"created_at\": \"2026-11-16T05:43:19Z\",\n  \"done_when\": [\n    \"record count and ordered IDs match\"\n  ],\n  \"goal\": \"validate synthetic fixture\",\n  \"human_decision_required\": false,\n  \"input_files\": [\n    \"fixtures/input.json\",\n    \"fixtures/records.json\",\n    \"fixtures/view.json\"\n  ],\n  \"playbook\": \"build\",\n  \"repair_rounds_allowed\": 2,\n  \"required_checks\": [\n    \"source-view-drift\"\n  ],\n  \"risk\": \"low\",\n  \"run_id\": \"demo\",\n  \"schema_version\": 3,\n  \"scope\": \"fixtures only\",\n  \"selection_metadata_not_evaluated\": [\n    \"fit/use_when\",\n    \"not_for\",\n    \"health_check\",\n    \"ranking\"\n  ],\n  \"selection_order_applied\": [\n    \"policy\",\n    \"lifecycle\"\n  ],\n  \"verification_mode\": \"fast_checks_with_independent_review_if_scope_requires\",\n  \"worker_limit\": 3\n}\n"
+    },
+    "fixtures/acceptance.json": {
+      "mode": 420,
+      "text": "{\"check\":\"fixed synthetic contract\"}\n"
+    },
+    "fixtures/input.json": {
+      "mode": 420,
+      "text": "{\"sample\":\"synthetic\"}\n"
+    },
+    "fixtures/records.json": {
+      "mode": 420,
+      "text": "{\"items\":[{\"id\":\"SYN-1\"},{\"id\":\"SYN-2\"}],\"fixture_classification\":\"synthetic\"}\n"
+    },
+    "fixtures/view.json": {
+      "mode": 420,
+      "text": "{\"record_count\":2,\"ids\":[\"SYN-1\",\"SYN-2\"],\"fixture_classification\":\"synthetic\"}\n"
+    },
+    "output.txt": {
+      "mode": 420,
+      "text": "Synthetic result.\n"
+    }
+  },
+  "observations": {
+    "status": {
+      "args": [
+        "--run-id",
+        "demo"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"changed_inputs\": [],\n  \"input_fresh\": true,\n  \"last_event\": {\n    \"at\": \"2026-11-16T05:43:19Z\",\n    \"check\": \"source-view-drift\",\n    \"event\": \"check_recorded\",\n    \"log\": \".proof/runs/demo/logs/drift-1.json\",\n    \"run_id\": \"demo\",\n    \"state\": \"pass\"\n  },\n  \"missing_inputs\": [],\n  \"repair_rounds_used\": 0,\n  \"run_id\": \"demo\",\n  \"run_state\": \"passed_for_scope\"\n}\n"
+    },
+    "resume": {
+      "args": [
+        "--run-id",
+        "demo"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"changed_inputs\": [],\n  \"last_event\": {\n    \"at\": \"2026-11-16T05:43:19Z\",\n    \"check\": \"source-view-drift\",\n    \"event\": \"check_recorded\",\n    \"log\": \".proof/runs/demo/logs/drift-1.json\",\n    \"run_id\": \"demo\",\n    \"state\": \"pass\"\n  },\n  \"next_action\": \"review the receipt and decide whether to accept the deliverable\",\n  \"repair_rounds_used\": 0,\n  \"run_id\": \"demo\",\n  \"run_state\": \"passed_for_scope\",\n  \"stale\": false\n}\n"
+    },
+    "validate": {
+      "args": [
+        "--run-id",
+        "demo",
+        "--baseline-pin",
+        "{external_pin}"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"changed_inputs\": [],\n  \"errors\": [],\n  \"input_fresh\": true,\n  \"note\": \"Known built-in runner evidence is recomputed against current inputs. Runner labels from external tools are rejected as unverified; local same-user files are not cryptographic attestations.\",\n  \"run_id\": \"demo\",\n  \"status\": \"PASS\",\n  \"valid\": true\n}\n",
+      "other_environment": {
+        "exit": 2,
+        "stdout": "{\n  \"changed_inputs\": [],\n  \"errors\": [\n    \"environment metadata does not match the current validator environment\"\n  ],\n  \"input_fresh\": true,\n  \"note\": \"Known built-in runner evidence is recomputed against current inputs. Runner labels from external tools are rejected as unverified; local same-user files are not cryptographic attestations.\",\n  \"run_id\": \"demo\",\n  \"status\": \"BLOCKED\",\n  \"valid\": false\n}\n"
+      }
+    }
+  },
+  "external_pin": "{\n  \"acceptance_tests\": {\n    \"fixtures/acceptance.json\": {\n      \"bytes\": 37,\n      \"sha256\": \"32560dc6c32b55a28810fbf7d3175159b4cd87d65a2d7b6b3bfb427d2918f6f7\"\n    }\n  },\n  \"approved_run_card_sha256\": \"1223b03bedc250724490406f554abe8247fc3f2c3100b856276e33a1184f50e8\",\n  \"schema_version\": 1\n}\n"
+}

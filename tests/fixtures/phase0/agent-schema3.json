@@ -1,0 +1,243 @@
+{
+  "directories": {
+    ".": 448,
+    ".proof": 493,
+    ".proof/agent-runs": 493,
+    ".proof/agent-runs/public": 448,
+    ".proof/agent-runs/public/candidate": 448,
+    ".proof/agent-runs/public/steps": 493,
+    ".proof/agent-runs/public/steps/000-quality-0": 493,
+    ".proof/agent-runs/public/steps/000-quality-0/check-0": 493,
+    ".proof/agent-runs/public/steps/000-quality-0/workspace": 448,
+    ".proof/agent-runs/public/steps/001-builder-1": 493,
+    ".proof/agent-runs/public/steps/001-builder-1/before": 493,
+    ".proof/agent-runs/public/steps/001-builder-1/workspace": 448,
+    ".proof/agent-runs/public/steps/002-quality-1": 493,
+    ".proof/agent-runs/public/steps/002-quality-1/check-0": 493,
+    ".proof/agent-runs/public/steps/002-quality-1/workspace": 448,
+    ".proof/agent-runs/public/steps/003-verifier-1": 493,
+    ".proof/agent-runs/public/steps/003-verifier-1/workspace": 448,
+    ".proof/agent-runs/public/steps/004-recheck-1": 493,
+    ".proof/agent-runs/public/steps/004-recheck-1/check-0": 493,
+    ".proof/agent-runs/public/steps/004-recheck-1/workspace": 448,
+    ".proof/agent-runs/public/steps/005-deliver": 493,
+    ".proof/agent-runs/public/steps/005-deliver/patch-check": 493,
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/workspace": 448,
+    ".proof/tasks": 493,
+    ".proof/tasks/public": 448
+  },
+  "files": {
+    ".proof/agent-runs/public/candidate/app.py": {
+      "mode": 420,
+      "text": "VALUE = 2\n"
+    },
+    ".proof/agent-runs/public/candidate/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/state.json": {
+      "mode": 384,
+      "text": "{\n  \"active\": null,\n  \"adapter_sha256\": \"f4dac290a3c3a859003d561df337d750aef0612891fd5c04ec56d42a328ec31b\",\n  \"agent_calls\": 2,\n  \"candidate_history\": [\n    \"43cf5fa5def5450809f497eb6669435318e89415823f5f4f1852ec76ddf86550\",\n    \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\"\n  ],\n  \"candidate_modes\": {\n    \"app.py\": 420,\n    \"check.py\": 420\n  },\n  \"deadline\": 1700000000,\n  \"diff\": {\n    \"apply_umask\": \"022\",\n    \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\",\n    \"files\": [\n      \"app.py\"\n    ],\n    \"path\": \".proof/agent-runs/public/steps/005-deliver/verified.patch\",\n    \"sha256\": \"f0b4045160b6f7795e902664a0ebf8a4267e6e37b55155d26cbe5784d302001e\"\n  },\n  \"directory_modes\": {\n    \".\": 448\n  },\n  \"expected\": {\n    \"app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n    \"check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"feedback\": [\n    {\n      \"commands\": [\n        {\n          \"argv\": [\n            \"python3\",\n            \"-B\",\n            \"check.py\"\n          ],\n          \"elapsed_seconds\": 0.04587979201460257,\n          \"exit_code\": 1,\n          \"pid\": 67554,\n          \"stderr\": \"\",\n          \"stdout\": \"\"\n        }\n      ],\n      \"passed\": false,\n      \"test_adapter\": null\n    }\n  ],\n  \"final_candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\",\n  \"final_verifier_thread\": \"synthetic-thread-2\",\n  \"initial\": {\n    \"app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n    \"check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"initial_modes\": {\n    \"app.py\": 420,\n    \"check.py\": 420\n  },\n  \"phase\": \"deliver\",\n  \"plan_sha256\": \"5dc4d2617a9afa194be95a4f772cd3d77cf4d0df866a0d70d6ed8dc9a53983ef\",\n  \"quality\": {\n    \"commands\": [\n      {\n        \"argv\": [\n          \"python3\",\n          \"-B\",\n          \"check.py\"\n        ],\n        \"elapsed_seconds\": 0.04477974999463186,\n        \"exit_code\": 0,\n        \"pid\": 67556,\n        \"stderr\": \"\",\n        \"stdout\": \"\"\n      }\n    ],\n    \"passed\": true,\n    \"test_adapter\": null\n  },\n  \"records\": [\n    {\n      \"coordinator_run\": \"agent:public:0\",\n      \"path\": \".proof/agent-runs/public/steps/000-quality-0/result.json\",\n      \"sha256\": \"5c3a4b956071095b559f5cadd62cfd981cb13aaf929bc8cfae44ba4101a1d21a\"\n    },\n    {\n      \"coordinator_run\": \"agent:public:1\",\n      \"path\": \".proof/agent-runs/public/steps/001-builder-1/result.json\",\n      \"sha256\": \"af44ab2f13ab951a4604dcad68ceb204e3768e7ad527235185c1cfd83764b840\"\n    },\n    {\n      \"coordinator_run\": \"agent:public:2\",\n      \"path\": \".proof/agent-runs/public/steps/002-quality-1/result.json\",\n      \"sha256\": \"e0b217ad2e798f9c8d68986652bcd1c095bb05fe00836a01007e49a9836e27db\"\n    },\n    {\n      \"coordinator_run\": \"agent:public:3\",\n      \"path\": \".proof/agent-runs/public/steps/003-verifier-1/result.json\",\n      \"sha256\": \"7d86eea1bad1e2edaa4d8a5b922b370f67a90e16818b720b8a5a4fe86fc74442\"\n    },\n    {\n      \"coordinator_run\": \"agent:public:4\",\n      \"path\": \".proof/agent-runs/public/steps/004-recheck-1/result.json\",\n      \"sha256\": \"fdbfbf0fa6b5eb89f4d53343689b712fe1a8dfe3e2cb5fa0d60f79f535f7851e\"\n    },\n    {\n      \"coordinator_run\": \"agent:public:5\",\n      \"path\": \".proof/agent-runs/public/steps/005-deliver/result.json\",\n      \"sha256\": \"d6bf595967f397ca365cf46c88e46b3e6117b5048b6521accd8cace2d91677ba\"\n    }\n  ],\n  \"requirement_results\": [\n    {\n      \"evidence\": [\n        \"file:app.py\",\n        \"check:0\"\n      ],\n      \"id\": \"TASK\",\n      \"reason\": \"Synthetic exact-task assessment\",\n      \"status\": \"pass\"\n    }\n  ],\n  \"round\": 1,\n  \"run_id\": \"public\",\n  \"schema_version\": 3,\n  \"source_expected\": {\n    \"app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n    \"check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"source_modes\": {\n    \"app.py\": 420,\n    \"check.py\": 420\n  },\n  \"specialist_index\": 0,\n  \"status\": \"completed_advisory\",\n  \"threads\": [\n    \"synthetic-thread-1\",\n    \"synthetic-thread-2\"\n  ],\n  \"trigger\": \"quality_failure\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/check-0/cleanup.json": {
+      "mode": 384,
+      "text": "{\n  \"group\": \"absent\",\n  \"group_error\": null,\n  \"leader_kill_error\": null,\n  \"leader_reaped\": true,\n  \"original_error\": null,\n  \"pid\": 67554,\n  \"reap_error\": null,\n  \"status\": \"complete\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/check-0/stderr.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/check-0/stdout.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/launch-0ba05928-d4f9-401a-b2b6-720ba7af4d5d.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67554:9f399252-94cc-4584-beab-06cc32c8b0ff\",\n  \"pid\": 67554\n}\n"
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/000-quality-0/check-0/cleanup.json\": \"f55d0646b39735a6896c058df227e6e154e03b02a75be1d423c4a30f056b830c\",\n    \".proof/agent-runs/public/steps/000-quality-0/check-0/stderr.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/000-quality-0/check-0/stdout.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/000-quality-0/launch-0ba05928-d4f9-401a-b2b6-720ba7af4d5d.json\": \"f519b803c234144a8a2e4193a2d6d26496fbfc264bc7326b40f4f7d3a9a3ff00\",\n    \".proof/agent-runs/public/steps/000-quality-0/workspace/app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n    \".proof/agent-runs/public/steps/000-quality-0/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"result\": {\n    \"commands\": [\n      {\n        \"argv\": [\n          \"python3\",\n          \"-B\",\n          \"check.py\"\n        ],\n        \"elapsed_seconds\": 0.04587979201460257,\n        \"exit_code\": 1,\n        \"pid\": 67554,\n        \"stderr\": \"\",\n        \"stdout\": \"\"\n      }\n    ],\n    \"passed\": false,\n    \"test_adapter\": null\n  },\n  \"stage\": \"quality-0\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 1\n"
+    },
+    ".proof/agent-runs/public/steps/000-quality-0/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/before/app.py": {
+      "mode": 384,
+      "text": "VALUE = 1\n"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/launch-06ef022a-bf10-4797-ab04-be0c133e43ed.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67549:48a24c7e-9321-4574-a422-3df2fd8be6d3\",\n  \"pid\": 67549\n}\n"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/001-builder-1/before/app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n    \".proof/agent-runs/public/steps/001-builder-1/launch-06ef022a-bf10-4797-ab04-be0c133e43ed.json\": \"83c31a7a62abc146e2f49fdf50fb9a764b74997079f5c5a376eab2515d146dc2\",\n    \".proof/agent-runs/public/steps/001-builder-1/synthetic-host.json\": \"d25188530db02678131f694f40bdd4c36db700ad81c5aece500ef8be50b210a6\",\n    \".proof/agent-runs/public/steps/001-builder-1/workspace/app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n    \".proof/agent-runs/public/steps/001-builder-1/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"result\": {\n    \"applied\": {\n      \"after\": {\n        \"app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n        \"check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n      },\n      \"before\": {\n        \"app.py\": \"e13df8c44af5dea1e412403910b99cc5a48f2ccbf68a66b3374d6ab9cef9fc65\",\n        \"check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n      }\n    },\n    \"argv\": [\n      \"synthetic-public-status-host\"\n    ],\n    \"classification\": \"synthetic_test_only\",\n    \"elapsed_seconds\": 0,\n    \"exit_code\": 0,\n    \"pid\": 67549,\n    \"response\": {\n      \"changes\": [\n        {\n          \"content\": \"VALUE = 2\\n\",\n          \"path\": \"app.py\"\n        }\n      ],\n      \"summary\": \"BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER\"\n    },\n    \"thread_id\": \"synthetic-thread-1\",\n    \"usage\": null\n  },\n  \"stage\": \"builder-1\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/synthetic-host.json": {
+      "mode": 420,
+      "text": "{\"summary\": \"BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER\", \"changes\": [{\"path\": \"app.py\", \"content\": \"VALUE = 2\\n\"}]}"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 1\n"
+    },
+    ".proof/agent-runs/public/steps/001-builder-1/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/check-0/cleanup.json": {
+      "mode": 384,
+      "text": "{\n  \"group\": \"absent\",\n  \"group_error\": null,\n  \"leader_kill_error\": null,\n  \"leader_reaped\": true,\n  \"original_error\": null,\n  \"pid\": 67555,\n  \"reap_error\": null,\n  \"status\": \"complete\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/check-0/stderr.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/check-0/stdout.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/launch-676aae82-5f60-427c-930a-b18f8e0cdd18.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67555:8ab5aa99-eb24-4590-a05d-4bbcd4b337a0\",\n  \"pid\": 67555\n}\n"
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/002-quality-1/check-0/cleanup.json\": \"3031b05e88434050b7d35b2451d407db2ea142d687528e2addcd4f42700e472b\",\n    \".proof/agent-runs/public/steps/002-quality-1/check-0/stderr.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/002-quality-1/check-0/stdout.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/002-quality-1/launch-676aae82-5f60-427c-930a-b18f8e0cdd18.json\": \"00bb707bfd2504a02eff94794b13cb0d6a5e0de859c922ba5c4741b5605abb16\",\n    \".proof/agent-runs/public/steps/002-quality-1/workspace/app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n    \".proof/agent-runs/public/steps/002-quality-1/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"result\": {\n    \"commands\": [\n      {\n        \"argv\": [\n          \"python3\",\n          \"-B\",\n          \"check.py\"\n        ],\n        \"elapsed_seconds\": 0.04646149999462068,\n        \"exit_code\": 0,\n        \"pid\": 67555,\n        \"stderr\": \"\",\n        \"stdout\": \"\"\n      }\n    ],\n    \"passed\": true,\n    \"test_adapter\": null\n  },\n  \"stage\": \"quality-1\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 2\n"
+    },
+    ".proof/agent-runs/public/steps/002-quality-1/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/003-verifier-1/launch-b2cd33a0-4823-4529-a51c-4401966cb7a8.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67549:954e7263-ca30-44b8-a3e2-63d353477587\",\n  \"pid\": 67549\n}\n"
+    },
+    ".proof/agent-runs/public/steps/003-verifier-1/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/003-verifier-1/launch-b2cd33a0-4823-4529-a51c-4401966cb7a8.json\": \"84bb49cb31c882dfd9097af5e5d9fd4ab2fc168e33343b0962c1b43f8059aab5\",\n    \".proof/agent-runs/public/steps/003-verifier-1/synthetic-host.json\": \"9842a4c983dddf0bf1717b2eef1cb6c152a65b163721d0f9959bf685749a84a6\",\n    \".proof/agent-runs/public/steps/003-verifier-1/workspace/app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n    \".proof/agent-runs/public/steps/003-verifier-1/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"result\": {\n    \"argv\": [\n      \"synthetic-public-status-host\"\n    ],\n    \"classification\": \"synthetic_test_only\",\n    \"elapsed_seconds\": 0,\n    \"exit_code\": 0,\n    \"pid\": 67549,\n    \"response\": {\n      \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\",\n      \"findings\": [],\n      \"requirements\": [\n        {\n          \"evidence\": [\n            \"file:app.py\",\n            \"check:0\"\n          ],\n          \"id\": \"TASK\",\n          \"reason\": \"Synthetic exact-task assessment\",\n          \"status\": \"pass\"\n        }\n      ],\n      \"verdict\": \"pass\"\n    },\n    \"thread_id\": \"synthetic-thread-2\",\n    \"usage\": null\n  },\n  \"stage\": \"verifier-1\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/003-verifier-1/synthetic-host.json": {
+      "mode": 420,
+      "text": "{\"verdict\": \"pass\", \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\", \"findings\": []}"
+    },
+    ".proof/agent-runs/public/steps/003-verifier-1/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 2\n"
+    },
+    ".proof/agent-runs/public/steps/003-verifier-1/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/check-0/cleanup.json": {
+      "mode": 384,
+      "text": "{\n  \"group\": \"absent\",\n  \"group_error\": null,\n  \"leader_kill_error\": null,\n  \"leader_reaped\": true,\n  \"original_error\": null,\n  \"pid\": 67556,\n  \"reap_error\": null,\n  \"status\": \"complete\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/check-0/stderr.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/check-0/stdout.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/launch-aedf7378-949d-45e0-89fc-6ccb0528af1b.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67556:bdee273f-c357-408e-88dc-8902c5487a32\",\n  \"pid\": 67556\n}\n"
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/004-recheck-1/check-0/cleanup.json\": \"8ac451944d4464bebc9ea35030f3e71728f2fa7656dc111f38b32eab4a232e2b\",\n    \".proof/agent-runs/public/steps/004-recheck-1/check-0/stderr.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/004-recheck-1/check-0/stdout.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/004-recheck-1/launch-aedf7378-949d-45e0-89fc-6ccb0528af1b.json\": \"2b5e5f3fe48ac258ae164b6a2dafa19ec0895232473a8df2e53ebcdc932d6af4\",\n    \".proof/agent-runs/public/steps/004-recheck-1/workspace/app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n    \".proof/agent-runs/public/steps/004-recheck-1/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\"\n  },\n  \"result\": {\n    \"commands\": [\n      {\n        \"argv\": [\n          \"python3\",\n          \"-B\",\n          \"check.py\"\n        ],\n        \"elapsed_seconds\": 0.04477974999463186,\n        \"exit_code\": 0,\n        \"pid\": 67556,\n        \"stderr\": \"\",\n        \"stdout\": \"\"\n      }\n    ],\n    \"passed\": true,\n    \"test_adapter\": null\n  },\n  \"stage\": \"recheck-1\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 2\n"
+    },
+    ".proof/agent-runs/public/steps/004-recheck-1/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/launch-4e8d6855-2e34-4fca-a1f6-d2291ac6fd03.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67558:027a2821-69b2-406f-afa4-2522bdce78dc\",\n  \"pid\": 67558\n}\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/cleanup.json": {
+      "mode": 384,
+      "text": "{\n  \"group\": \"absent\",\n  \"group_error\": null,\n  \"leader_kill_error\": null,\n  \"leader_reaped\": true,\n  \"original_error\": null,\n  \"pid\": 67558,\n  \"reap_error\": null,\n  \"status\": \"complete\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/stderr.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/stdout.log": {
+      "mode": 384,
+      "text": ""
+    },
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/workspace/app.py": {
+      "mode": 420,
+      "text": "VALUE = 2\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/patch-check/workspace/check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/public/steps/005-deliver/launch-4e8d6855-2e34-4fca-a1f6-d2291ac6fd03.json\": \"30040a1e171e4b146b5bbd1b52142c208ecb9d1439c95b112769a80a64eb7cd1\",\n    \".proof/agent-runs/public/steps/005-deliver/patch-check/cleanup.json\": \"a1ade865ff04a6e8b6d5dbf1ddbf3207b93cd2823b9d8a1fc181a1973b6915f8\",\n    \".proof/agent-runs/public/steps/005-deliver/patch-check/stderr.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/005-deliver/patch-check/stdout.log\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\n    \".proof/agent-runs/public/steps/005-deliver/patch-check/workspace/app.py\": \"3da6c4b355804b265ecef19dfe5945fe2790a8cc38dc9d0547fb1634c94cbbe7\",\n    \".proof/agent-runs/public/steps/005-deliver/patch-check/workspace/check.py\": \"86d0a2779045b72625fed8b765bb6fe54ec2146b2683db6e2333da489037a37c\",\n    \".proof/agent-runs/public/steps/005-deliver/verified.patch\": \"f0b4045160b6f7795e902664a0ebf8a4267e6e37b55155d26cbe5784d302001e\"\n  },\n  \"result\": {\n    \"apply_umask\": \"022\",\n    \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\",\n    \"files\": [\n      \"app.py\"\n    ],\n    \"path\": \".proof/agent-runs/public/steps/005-deliver/verified.patch\",\n    \"sha256\": \"f0b4045160b6f7795e902664a0ebf8a4267e6e37b55155d26cbe5784d302001e\"\n  },\n  \"stage\": \"deliver\"\n}\n"
+    },
+    ".proof/agent-runs/public/steps/005-deliver/verified.patch": {
+      "mode": 384,
+      "text": "diff --git \"a/app.py\" \"b/app.py\"\n--- \"a/app.py\"\n+++ \"b/app.py\"\n@@ -1 +1 @@\n-VALUE = 1\n+VALUE = 2\n"
+    },
+    ".proof/tasks/public/intake.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/tasks/public/plan.json\": \"5dc4d2617a9afa194be95a4f772cd3d77cf4d0df866a0d70d6ed8dc9a53983ef\",\n    \".proof/tasks/public/profile.json\": \"e8b6226c7c0e99246766dc11b770e007d9a48da161ed200e4ccb2d97fdd20a4d\",\n    \".proof/tasks/public/request.txt\": \"55818cee3b254dbc8b6c96a2f5c3f0774e27129a34eb87b64c8037f7f69c45a0\"\n  },\n  \"profile_path\": \"proofloop-project.json\",\n  \"profile_sha256\": \"4b77e3d76d9ffe0855ae3679b5a4efcd03f3df6231c2efa5c5639f716e469f63\",\n  \"request_sha256\": \"55818cee3b254dbc8b6c96a2f5c3f0774e27129a34eb87b64c8037f7f69c45a0\",\n  \"run_id\": \"public\",\n  \"schema_version\": 1\n}\n"
+    },
+    ".proof/tasks/public/plan.json": {
+      "mode": 384,
+      "text": "{\n  \"agent_timeout_seconds\": 180,\n  \"check_timeout_seconds\": 30,\n  \"delivery\": \"diff\",\n  \"editable\": [\n    \"app.py\"\n  ],\n  \"files\": [\n    \"app.py\",\n    \"check.py\"\n  ],\n  \"goal\": \"Make VALUE equal 2.\",\n  \"max_agent_calls\": 6,\n  \"max_repairs\": 2,\n  \"max_run_seconds\": 600,\n  \"protected\": [\n    \"check.py\"\n  ],\n  \"quality\": [\n    [\n      \"python3\",\n      \"-B\",\n      \"check.py\"\n    ]\n  ],\n  \"requirements\": [\n    {\n      \"description\": \"Make VALUE equal 2.\",\n      \"id\": \"TASK\"\n    }\n  ],\n  \"specialists\": []\n}\n"
+    },
+    ".proof/tasks/public/profile.json": {
+      "mode": 384,
+      "text": "{\n  \"plan\": {\n    \"agent_timeout_seconds\": 180,\n    \"check_timeout_seconds\": 30,\n    \"editable\": [\n      \"app.py\"\n    ],\n    \"files\": [\n      \"app.py\",\n      \"check.py\"\n    ],\n    \"max_agent_calls\": 6,\n    \"max_repairs\": 2,\n    \"max_run_seconds\": 600,\n    \"protected\": [\n      \"check.py\"\n    ],\n    \"quality\": [\n      [\n        \"python3\",\n        \"-B\",\n        \"check.py\"\n      ]\n    ],\n    \"specialists\": []\n  },\n  \"schema_version\": 1\n}\n"
+    },
+    ".proof/tasks/public/request.txt": {
+      "mode": 384,
+      "text": "Make VALUE equal 2."
+    },
+    "app.py": {
+      "mode": 420,
+      "text": "VALUE = 1\n"
+    },
+    "check.py": {
+      "mode": 420,
+      "text": "import sys\nfrom app import VALUE\nsys.exit(VALUE != 2)\n"
+    },
+    "proofloop-project.json": {
+      "mode": 420,
+      "text": "{\n  \"schema_version\": 1,\n  \"plan\": {\n    \"max_repairs\": 2,\n    \"max_agent_calls\": 6,\n    \"agent_timeout_seconds\": 180,\n    \"check_timeout_seconds\": 30,\n    \"max_run_seconds\": 600,\n    \"files\": [\n      \"app.py\",\n      \"check.py\"\n    ],\n    \"editable\": [\n      \"app.py\"\n    ],\n    \"protected\": [\n      \"check.py\"\n    ],\n    \"quality\": [\n      [\n        \"python3\",\n        \"-B\",\n        \"check.py\"\n      ]\n    ],\n    \"specialists\": []\n  }\n}\n"
+    }
+  },
+  "observations": {
+    "agent-status": {
+      "args": [
+        "--run-id",
+        "public",
+        "--plan",
+        ".proof/tasks/public/plan.json"
+      ],
+      "exit": 0,
+      "stdout": "{\"acceptance\": \"not_accepted\", \"active\": null, \"budgets\": {\"agent_calls\": {\"limit\": 6, \"remaining\": 4, \"used\": 2}, \"repairs\": {\"limit\": 2, \"remaining\": 1, \"used\": 1}}, \"cancellation_requested\": false, \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\", \"classification\": \"hash_consistency_only\", \"deadline\": 1700000000, \"delivery\": \"diff\", \"diff\": {\"apply_umask\": \"022\", \"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\", \"files\": [\"app.py\"], \"path\": \".proof/agent-runs/public/steps/005-deliver/verified.patch\", \"sha256\": \"f0b4045160b6f7795e902664a0ebf8a4267e6e37b55155d26cbe5784d302001e\"}, \"freshness\": {\"issues\": [], \"state\": \"current\"}, \"historical\": false, \"phase\": \"deliver\", \"quality\": {\"commands\": [{\"argv\": [\"python3\", \"-B\", \"check.py\"], \"elapsed_seconds\": 0.04477974999463186, \"exit_code\": 0, \"pid\": 67556, \"stderr\": \"\", \"stdout\": \"\"}], \"passed\": true}, \"reason\": null, \"run_id\": \"public\", \"schema_version\": 1, \"state\": \"completed_advisory\", \"state_schema_version\": 3, \"time_remaining_seconds\": 0, \"verifier\": {\"candidate_sha256\": \"c3c26cf7973ad293043ed8693cdc8b897c50960c2c7330fceba19e914f39aa47\", \"findings\": [], \"requirements\": [{\"evidence\": [\"file:app.py\", \"check:0\"], \"id\": \"TASK\", \"reason\": \"Synthetic exact-task assessment\", \"status\": \"pass\"}], \"thread_id\": \"synthetic-thread-2\", \"verdict\": \"pass\"}}\n"
+    }
+  }
+}

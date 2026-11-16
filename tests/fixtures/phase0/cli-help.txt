@@ -1,0 +1,303 @@
+$ proofloop --help
+usage: proofloop [-h] [--version] {init,validate-registry,start,recheck,status,resume,repair,close,observe,validate,drift,orchestrate,agent-run,agent-cancel,agent-preflight,agent-status,agent-recover,profile-init,fix,harness-run,harness-check,harness-status,harness-cancel,harness-recover,harness-adapters} ...
+
+Portable, project-scoped evidence workflow
+
+positional arguments:
+  {init,validate-registry,start,recheck,status,resume,repair,close,observe,validate,drift,orchestrate,agent-run,agent-cancel,agent-preflight,agent-status,agent-recover,profile-init,fix,harness-run,harness-check,harness-status,harness-cancel,harness-recover,harness-adapters}
+    init                create project-scoped .proof starter files
+    validate-registry   check capability registry lifecycle and policy-first
+                        fields
+    start               create an intake Run Card and run state
+    recheck             freeze repaired inputs in a new run with unchanged
+                        acceptance criteria
+    status              show persisted run status
+    resume              summarize state and next action
+    repair              record a bounded repair round
+    close               record a terminal non-pass state
+    observe             record observed invocation/spend metrics without
+                        claiming enforcement
+    validate            validate receipt shape and input freshness
+    drift               read-only source-versus-generated-view JSON check;
+                        writes a new evidence log
+    orchestrate         run or resume a bounded synthetic projection plan;
+                        advisory only
+    agent-run           run/resume bounded native Codex agents with quality
+                        and verifier gates
+    agent-cancel        request cancellation without redispatching work
+    agent-preflight     inspect plan/runtime dependencies without dispatch
+    agent-status        inspect progress, evidence and recovery without writes
+    agent-recover       finish a journaled verified promotion; never
+                        redispatch agents
+    profile-init        configure reusable project scope and checks once
+    fix                 describe a fix once; return a verified diff or precise
+                        blocker
+    harness-run         run a typed task contract
+    harness-check       run checks without dispatching agents
+    harness-status      inspect typed task evidence without execution
+    harness-cancel      request cancellation of a typed task run
+    harness-recover     finish a journaled typed-task promotion without
+                        redispatch
+    harness-adapters    list version-1 built-in check adapters
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+
+$ proofloop init --help
+usage: proofloop init [-h] [--force] root
+
+positional arguments:
+  root
+
+options:
+  -h, --help  show this help message and exit
+  --force     fill missing starter files without overwriting existing files
+
+$ proofloop validate-registry --help
+usage: proofloop validate-registry [-h] --root ROOT
+
+options:
+  -h, --help   show this help message and exit
+  --root ROOT
+
+$ proofloop start --help
+usage: proofloop start [-h] --root ROOT --goal GOAL --scope SCOPE [--playbook PLAYBOOK] [--risk {low,medium,high,critical}] [--use-capability USE_CAPABILITY] [--exclude-capability EXCLUDE_CAPABILITY] [--assumption ASSUMPTION] --done DONE --check CHECK [--input INPUT] --acceptance-test ACCEPTANCE_TEST [--baseline-pin BASELINE_PIN | --advisory] [--run-id RUN_ID]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --goal GOAL
+  --scope SCOPE
+  --playbook PLAYBOOK
+  --risk {low,medium,high,critical}
+  --use-capability USE_CAPABILITY
+  --exclude-capability EXCLUDE_CAPABILITY
+  --assumption ASSUMPTION
+  --done DONE
+  --check CHECK         required check name; repeat for each gate check
+  --input INPUT
+  --acceptance-test ACCEPTANCE_TEST
+  --baseline-pin BASELINE_PIN
+                        externally governed acceptance hash pin outside the
+                        project
+  --advisory            allow low-risk work without acceptance pin; the run
+                        can never be accepted as passed_for_scope
+  --run-id RUN_ID
+
+$ proofloop recheck --help
+usage: proofloop recheck [-h] --root ROOT --run-id RUN_ID --new-run-id NEW_RUN_ID [--baseline-pin BASELINE_PIN]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --new-run-id NEW_RUN_ID
+  --baseline-pin BASELINE_PIN
+
+$ proofloop status --help
+usage: proofloop status [-h] --root ROOT --run-id RUN_ID
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+
+$ proofloop resume --help
+usage: proofloop resume [-h] --root ROOT --run-id RUN_ID
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+
+$ proofloop repair --help
+usage: proofloop repair [-h] --root ROOT --run-id RUN_ID --reason REASON
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --reason REASON
+
+$ proofloop close --help
+usage: proofloop close [-h] --root ROOT --run-id RUN_ID --state {failed,blocked,cancelled,superseded} --reason REASON
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --state {failed,blocked,cancelled,superseded}
+  --reason REASON
+
+$ proofloop observe --help
+usage: proofloop observe [-h] --root ROOT --run-id RUN_ID --invocations INVOCATIONS [--spend SPEND] --source SOURCE
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --invocations INVOCATIONS
+  --spend SPEND         observed amount/currency or 'not available'
+  --source SOURCE       evidence source for the observation
+
+$ proofloop validate --help
+usage: proofloop validate [-h] --root ROOT --run-id RUN_ID [--baseline-pin BASELINE_PIN]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --baseline-pin BASELINE_PIN
+                        same externally governed acceptance pin used at start
+
+$ proofloop drift --help
+usage: proofloop drift [-h] --root ROOT --run-id RUN_ID --source SOURCE --view VIEW --log LOG
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --source SOURCE
+  --view VIEW
+  --log LOG
+
+$ proofloop orchestrate --help
+usage: proofloop orchestrate [-h] --root ROOT --run-id RUN_ID --plan PLAN [--max-steps MAX_STEPS]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --plan PLAN
+  --max-steps MAX_STEPS
+
+$ proofloop agent-run --help
+usage: proofloop agent-run [-h] --root ROOT --run-id RUN_ID --plan PLAN [--max-steps MAX_STEPS]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --plan PLAN
+  --max-steps MAX_STEPS
+
+$ proofloop agent-cancel --help
+usage: proofloop agent-cancel [-h] --root ROOT --run-id RUN_ID
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+
+$ proofloop agent-preflight --help
+usage: proofloop agent-preflight [-h] --root ROOT --plan PLAN
+
+options:
+  -h, --help   show this help message and exit
+  --root ROOT
+  --plan PLAN
+
+$ proofloop agent-status --help
+usage: proofloop agent-status [-h] --root ROOT --run-id RUN_ID --plan PLAN
+
+Inspect persisted agent evidence without executing or writing anything
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --plan PLAN
+
+$ proofloop agent-recover --help
+usage: proofloop agent-recover [-h] --root ROOT --plan PLAN --run-id RUN_ID --finish-promotion
+
+options:
+  -h, --help          show this help message and exit
+  --root ROOT
+  --plan PLAN
+  --run-id RUN_ID
+  --finish-promotion
+
+$ proofloop profile-init --help
+usage: proofloop profile-init [-h] --root ROOT [--profile PROFILE] [--from-plan FROM_PLAN] [--editable EDITABLE [EDITABLE ...]] [--protected PROTECTED [PROTECTED ...]] [--context CONTEXT [CONTEXT ...]] [--check-json CHECK_JSON]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --profile PROFILE
+  --from-plan FROM_PLAN
+  --editable EDITABLE [EDITABLE ...]
+  --protected PROTECTED [PROTECTED ...]
+  --context CONTEXT [CONTEXT ...]
+  --check-json CHECK_JSON
+                        trusted command as a JSON argv array
+
+$ proofloop fix --help
+usage: proofloop fix [-h] --root ROOT [--profile PROFILE] [--run-id RUN_ID] (--request REQUEST | --request-file REQUEST_FILE) [--json]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --profile PROFILE
+  --run-id RUN_ID       reuse the exact request/profile to resume; defaults to
+                        a unique ID
+  --request REQUEST
+  --request-file REQUEST_FILE
+                        project-relative UTF-8 request file
+  --json                emit the structured outcome/evidence report
+
+$ proofloop harness-run --help
+usage: proofloop harness-run [-h] --root ROOT --run-id RUN_ID --task TASK [--max-steps MAX_STEPS]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --task TASK
+  --max-steps MAX_STEPS
+
+$ proofloop harness-check --help
+usage: proofloop harness-check [-h] --root ROOT --run-id RUN_ID --task TASK [--max-steps MAX_STEPS]
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --task TASK
+  --max-steps MAX_STEPS
+
+$ proofloop harness-status --help
+usage: proofloop harness-status [-h] --root ROOT --run-id RUN_ID --task TASK
+
+Inspect persisted agent evidence without executing or writing anything
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --task TASK
+
+$ proofloop harness-cancel --help
+usage: proofloop harness-cancel [-h] --root ROOT --run-id RUN_ID
+
+options:
+  -h, --help       show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+
+$ proofloop harness-recover --help
+usage: proofloop harness-recover [-h] --root ROOT --run-id RUN_ID --task TASK --finish-promotion
+
+options:
+  -h, --help          show this help message and exit
+  --root ROOT
+  --run-id RUN_ID
+  --task TASK
+  --finish-promotion
+
+$ proofloop harness-adapters --help
+usage: proofloop harness-adapters [-h]
+
+options:
+  -h, --help  show this help message and exit

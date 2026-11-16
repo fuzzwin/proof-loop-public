@@ -1,0 +1,45 @@
+name: Read-only checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Record checkout and runtime
+        run: |
+          {
+            printf '### Tested checkout and runtime\n\n```text\n'
+            git rev-parse HEAD
+            python -VV
+            python -c 'import platform; print(platform.platform())'
+            printf '```\n'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Unit suite
+        run: python -B -m unittest discover -s tests -v
+      - name: Protected pilot acceptance
+        run: python -B pilot/acceptance.py
+      - name: Clean-start smoke
+        run: python -B tools/clean_start_smoke.py
+      - name: Harness smoke
+        run: python -B tools/harness_smoke.py

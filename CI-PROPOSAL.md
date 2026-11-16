@@ -1,15 +1,14 @@
-# CI proposal — disabled
+# Read-only CI
 
-No workflow file is included or enabled. Start with local/manual checks until repository permissions, budget, trusted-runner design, and evidence retention are reviewed.
+The [GitHub Actions workflow](.github/workflows/ci.yml) checks pull requests
+against `main` and pushes to `main`. It runs the unit suite, protected pilot
+suite, and both smoke scripts on Ubuntu and macOS with Python 3.10 and 3.13.
+Each job records the checked-out commit and runtime and has a 20-minute timeout.
 
-## Suggested first pipeline
+The workflow uses GitHub-hosted runners, a token with only `contents: read`,
+and actions pinned to full commit SHAs. Checkout does not persist credentials.
+The checks use synthetic fixtures and require no secrets or live model calls.
 
-1. Run manually on an exact reviewed commit with read-only repository permissions, no secrets, no deployment, and a bounded job timeout.
-2. Check documentation links and the source manifest, then run the Python suite and synthetic CLI smoke.
-3. Add platform jobs only when the actual environments are supported and their results are reported separately.
-4. Have a verifier with genuinely separate authority rerun or recompute evidence.
-5. Allow release steps to consume only fresh passing evidence tied to the exact source and output artifact. Keep consequential release approval human-controlled.
-
-Missing identities, changed tests, stale hashes, truncated output, skipped/cancelled tests, nonzero process outcomes, deadline overruns, runner loss, and invalid receipts must block release. Preserve failed evidence and state the blocker. No success defaults, automatic gate weakening, or unbounded repair loop.
-
-Local/manual evidence remains useful when labeled with its environment, scope, and custody limits. Publication and CI are separate decisions.
+See [Test status](TEST-STATUS.md) for recorded runs. CI checks source behavior
+on the listed runners. Release, deployment, and independent acceptance of a
+project's evidence are separate decisions.

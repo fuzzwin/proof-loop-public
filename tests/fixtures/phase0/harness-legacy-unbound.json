@@ -1,0 +1,85 @@
+{
+  "directories": {
+    ".": 493,
+    ".proof": 493,
+    ".proof/agent-runs": 493,
+    ".proof/agent-runs/golden": 448,
+    ".proof/agent-runs/golden/candidate": 493,
+    ".proof/agent-runs/golden/steps": 493,
+    ".proof/agent-runs/golden/steps/000-quality-0": 493,
+    ".proof/agent-runs/golden/steps/000-quality-0/check-0": 493,
+    ".proof/agent-runs/golden/steps/000-quality-0/check-0/workspace": 493,
+    ".proof/agent-runs/golden/steps/000-quality-0/check-1": 493,
+    ".proof/agent-runs/golden/steps/000-quality-0/check-1/workspace": 493
+  },
+  "files": {
+    ".proof/agent-runs/golden/candidate/report.md": {
+      "mode": 420,
+      "text": "# Release checklist\n\nScope: local files\nEvidence: recorded checks\n"
+    },
+    ".proof/agent-runs/golden/candidate/requirements.md": {
+      "mode": 420,
+      "text": "The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.\n"
+    },
+    ".proof/agent-runs/golden/state.json": {
+      "mode": 384,
+      "text": "{\n  \"active\": null,\n  \"adapter_sha256\": \"f4dac290a3c3a859003d561df337d750aef0612891fd5c04ec56d42a328ec31b\",\n  \"agent_calls\": 0,\n  \"candidate_history\": [\n    \"e22834cb33c0768a52cdd8060d96a2f41f9c06260ad6ba0c65ab66364b96c299\"\n  ],\n  \"candidate_modes\": {\n    \"report.md\": 420,\n    \"requirements.md\": 420\n  },\n  \"deadline\": 1700000000,\n  \"directory_modes\": {\n    \".\": 493\n  },\n  \"expected\": {\n    \"report.md\": \"fee868779d9bceaad63f3a04af3f087a41d42a519cd03e3fe0df4f505f93c65c\",\n    \"requirements.md\": \"79032e0c487a60e436842d510856711e7997be9107579101afa4aeb4979948d9\"\n  },\n  \"feedback\": [],\n  \"initial\": {\n    \"report.md\": \"fee868779d9bceaad63f3a04af3f087a41d42a519cd03e3fe0df4f505f93c65c\",\n    \"requirements.md\": \"79032e0c487a60e436842d510856711e7997be9107579101afa4aeb4979948d9\"\n  },\n  \"initial_modes\": {\n    \"report.md\": 420,\n    \"requirements.md\": 420\n  },\n  \"phase\": \"verifier\",\n  \"plan_sha256\": \"e1615979dba929f78716ac33413a983bb40ebbc7c4ecb1ca061c66910644892e\",\n  \"quality\": {\n    \"checks\": [\n      {\n        \"adapter\": \"text\",\n        \"contract\": {\n          \"adapter\": \"text\",\n          \"contains\": [\n            \"# Release checklist\"\n          ],\n          \"criterion\": \"The document has the agreed heading.\",\n          \"excludes\": [],\n          \"id\": \"structure\",\n          \"path\": \"report.md\",\n          \"purpose\": \"verification\"\n        },\n        \"criterion\": \"The document has the agreed heading.\",\n        \"evidence_kind\": \"deterministic_file_check\",\n        \"id\": \"structure\",\n        \"observations\": {\n          \"forbidden\": [],\n          \"missing\": []\n        },\n        \"purpose\": \"verification\",\n        \"state\": \"pass\"\n      },\n      {\n        \"adapter\": \"text\",\n        \"contract\": {\n          \"adapter\": \"text\",\n          \"contains\": [\n            \"Scope: local files\",\n            \"Evidence: recorded checks\"\n          ],\n          \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n          \"excludes\": [\n            \"TBD\",\n            \"guaranteed correctness\"\n          ],\n          \"id\": \"scope-and-evidence\",\n          \"path\": \"report.md\",\n          \"purpose\": \"validation\"\n        },\n        \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n        \"evidence_kind\": \"deterministic_file_check\",\n        \"id\": \"scope-and-evidence\",\n        \"observations\": {\n          \"forbidden\": [],\n          \"missing\": []\n        },\n        \"purpose\": \"validation\",\n        \"state\": \"pass\"\n      }\n    ],\n    \"passed\": true,\n    \"validation\": {\n      \"checked\": [\n        \"scope-and-evidence\"\n      ],\n      \"failed\": [],\n      \"state\": \"pass\"\n    },\n    \"verification\": {\n      \"checked\": [\n        \"structure\"\n      ],\n      \"failed\": [],\n      \"state\": \"pass\"\n    }\n  },\n  \"records\": [\n    {\n      \"coordinator_run\": \"agent:golden:0\",\n      \"path\": \".proof/agent-runs/golden/steps/000-quality-0/result.json\",\n      \"sha256\": \"5fb6cff87819eb95bed880fc350b7dd7a0831a9e0543663c26541f9bae91ed8d\"\n    }\n  ],\n  \"round\": 0,\n  \"run_id\": \"golden\",\n  \"schema_version\": 3,\n  \"source_expected\": {\n    \"report.md\": \"fee868779d9bceaad63f3a04af3f087a41d42a519cd03e3fe0df4f505f93c65c\",\n    \"requirements.md\": \"79032e0c487a60e436842d510856711e7997be9107579101afa4aeb4979948d9\"\n  },\n  \"source_modes\": {\n    \"report.md\": 420,\n    \"requirements.md\": 420\n  },\n  \"status\": \"checkpoint\",\n  \"threads\": [],\n  \"trigger\": null\n}\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-0/check.json": {
+      "mode": 384,
+      "text": "{\n  \"adapter\": \"text\",\n  \"contract\": {\n    \"adapter\": \"text\",\n    \"contains\": [\n      \"# Release checklist\"\n    ],\n    \"criterion\": \"The document has the agreed heading.\",\n    \"excludes\": [],\n    \"id\": \"structure\",\n    \"path\": \"report.md\",\n    \"purpose\": \"verification\"\n  },\n  \"criterion\": \"The document has the agreed heading.\",\n  \"evidence_kind\": \"deterministic_file_check\",\n  \"id\": \"structure\",\n  \"observations\": {\n    \"forbidden\": [],\n    \"missing\": []\n  },\n  \"purpose\": \"verification\",\n  \"state\": \"pass\"\n}\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-0/workspace/report.md": {
+      "mode": 420,
+      "text": "# Release checklist\n\nScope: local files\nEvidence: recorded checks\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-0/workspace/requirements.md": {
+      "mode": 420,
+      "text": "The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-1/check.json": {
+      "mode": 384,
+      "text": "{\n  \"adapter\": \"text\",\n  \"contract\": {\n    \"adapter\": \"text\",\n    \"contains\": [\n      \"Scope: local files\",\n      \"Evidence: recorded checks\"\n    ],\n    \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n    \"excludes\": [\n      \"TBD\",\n      \"guaranteed correctness\"\n    ],\n    \"id\": \"scope-and-evidence\",\n    \"path\": \"report.md\",\n    \"purpose\": \"validation\"\n  },\n  \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n  \"evidence_kind\": \"deterministic_file_check\",\n  \"id\": \"scope-and-evidence\",\n  \"observations\": {\n    \"forbidden\": [],\n    \"missing\": []\n  },\n  \"purpose\": \"validation\",\n  \"state\": \"pass\"\n}\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-1/workspace/report.md": {
+      "mode": 420,
+      "text": "# Release checklist\n\nScope: local files\nEvidence: recorded checks\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/check-1/workspace/requirements.md": {
+      "mode": 420,
+      "text": "The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/launch-d048f4dd-6452-4991-8ad0-010b4468b291.json": {
+      "mode": 384,
+      "text": "{\n  \"dispatch_ref\": \"local-process:67549:b0e8bd1c-36c0-49be-8c33-542ae7506479\",\n  \"pid\": 67549\n}\n"
+    },
+    ".proof/agent-runs/golden/steps/000-quality-0/result.json": {
+      "mode": 384,
+      "text": "{\n  \"evidence\": {\n    \".proof/agent-runs/golden/steps/000-quality-0/check-0/check.json\": \"ac4e8c99ca92980500b29bbde167909fa4f3eac2c3757b0794fb410d86ec3ffd\",\n    \".proof/agent-runs/golden/steps/000-quality-0/check-0/workspace/report.md\": \"fee868779d9bceaad63f3a04af3f087a41d42a519cd03e3fe0df4f505f93c65c\",\n    \".proof/agent-runs/golden/steps/000-quality-0/check-0/workspace/requirements.md\": \"79032e0c487a60e436842d510856711e7997be9107579101afa4aeb4979948d9\",\n    \".proof/agent-runs/golden/steps/000-quality-0/check-1/check.json\": \"232f4a4de9844a22795c4385dbe1851309cf02bf7ea8783fd8dd0303dd5a3095\",\n    \".proof/agent-runs/golden/steps/000-quality-0/check-1/workspace/report.md\": \"fee868779d9bceaad63f3a04af3f087a41d42a519cd03e3fe0df4f505f93c65c\",\n    \".proof/agent-runs/golden/steps/000-quality-0/check-1/workspace/requirements.md\": \"79032e0c487a60e436842d510856711e7997be9107579101afa4aeb4979948d9\",\n    \".proof/agent-runs/golden/steps/000-quality-0/launch-d048f4dd-6452-4991-8ad0-010b4468b291.json\": \"fc9b98d9db1084321380a28c20f525962b5641f65b7106b0a7da9eed50a0efdf\"\n  },\n  \"result\": {\n    \"checks\": [\n      {\n        \"adapter\": \"text\",\n        \"contract\": {\n          \"adapter\": \"text\",\n          \"contains\": [\n            \"# Release checklist\"\n          ],\n          \"criterion\": \"The document has the agreed heading.\",\n          \"excludes\": [],\n          \"id\": \"structure\",\n          \"path\": \"report.md\",\n          \"purpose\": \"verification\"\n        },\n        \"criterion\": \"The document has the agreed heading.\",\n        \"evidence_kind\": \"deterministic_file_check\",\n        \"id\": \"structure\",\n        \"observations\": {\n          \"forbidden\": [],\n          \"missing\": []\n        },\n        \"purpose\": \"verification\",\n        \"state\": \"pass\"\n      },\n      {\n        \"adapter\": \"text\",\n        \"contract\": {\n          \"adapter\": \"text\",\n          \"contains\": [\n            \"Scope: local files\",\n            \"Evidence: recorded checks\"\n          ],\n          \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n          \"excludes\": [\n            \"TBD\",\n            \"guaranteed correctness\"\n          ],\n          \"id\": \"scope-and-evidence\",\n          \"path\": \"report.md\",\n          \"purpose\": \"validation\"\n        },\n        \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n        \"evidence_kind\": \"deterministic_file_check\",\n        \"id\": \"scope-and-evidence\",\n        \"observations\": {\n          \"forbidden\": [],\n          \"missing\": []\n        },\n        \"purpose\": \"validation\",\n        \"state\": \"pass\"\n      }\n    ],\n    \"passed\": true,\n    \"validation\": {\n      \"checked\": [\n        \"scope-and-evidence\"\n      ],\n      \"failed\": [],\n      \"state\": \"pass\"\n    },\n    \"verification\": {\n      \"checked\": [\n        \"structure\"\n      ],\n      \"failed\": [],\n      \"state\": \"pass\"\n    }\n  },\n  \"stage\": \"quality-0\"\n}\n"
+    },
+    "report.md": {
+      "mode": 420,
+      "text": "# Release checklist\n\nScope: local files\nEvidence: recorded checks\n"
+    },
+    "requirements.md": {
+      "mode": 420,
+      "text": "The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.\n"
+    },
+    "task.json": {
+      "mode": 420,
+      "text": "{\n  \"schema_version\": 1,\n  \"goal\": \"The release checklist must contain its heading, Scope: local files, and Evidence: recorded checks. Remove TBD and do not promise guaranteed correctness.\",\n  \"files\": [\n    \"report.md\",\n    \"requirements.md\"\n  ],\n  \"editable\": [\n    \"report.md\"\n  ],\n  \"protected\": [\n    \"requirements.md\"\n  ],\n  \"requirements\": [\n    \"requirements.md\"\n  ],\n  \"checks\": [\n    {\n      \"id\": \"structure\",\n      \"purpose\": \"verification\",\n      \"criterion\": \"The document has the agreed heading.\",\n      \"adapter\": \"text\",\n      \"path\": \"report.md\",\n      \"contains\": [\n        \"# Release checklist\"\n      ],\n      \"excludes\": []\n    },\n    {\n      \"id\": \"scope-and-evidence\",\n      \"purpose\": \"validation\",\n      \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\",\n      \"adapter\": \"text\",\n      \"path\": \"report.md\",\n      \"contains\": [\n        \"Scope: local files\",\n        \"Evidence: recorded checks\"\n      ],\n      \"excludes\": [\n        \"TBD\",\n        \"guaranteed correctness\"\n      ]\n    }\n  ],\n  \"specialists\": [\n    {\n      \"id\": \"diagnostic\",\n      \"instructions\": \"Diagnose the failing criteria using the protected requirements.\",\n      \"when\": [\n        \"quality_failure\",\n        \"verification_failure\"\n      ]\n    }\n  ],\n  \"limits\": {\n    \"max_repairs\": 2,\n    \"max_agent_calls\": 6,\n    \"agent_timeout_seconds\": 180,\n    \"check_timeout_seconds\": 60,\n    \"max_run_seconds\": 900\n  },\n  \"host\": {\n    \"kind\": \"codex\"\n  }\n}\n"
+    }
+  },
+  "observations": {
+    "harness-status": {
+      "args": [
+        "--run-id",
+        "golden",
+        "--task",
+        "task.json"
+      ],
+      "exit": 0,
+      "stdout": "{\"acceptance\": \"not_accepted\", \"active\": null, \"budgets\": {\"agent_calls\": {\"limit\": 6, \"remaining\": 6, \"used\": 0}, \"repairs\": {\"limit\": 2, \"remaining\": 2, \"used\": 0}}, \"cancellation_requested\": false, \"candidate_sha256\": \"e22834cb33c0768a52cdd8060d96a2f41f9c06260ad6ba0c65ab66364b96c299\", \"classification\": \"hash_consistency_only_not_authenticated_evidence\", \"deadline\": 1700000000, \"delivery\": \"apply\", \"freshness\": {\"issues\": [], \"state\": \"current\"}, \"historical\": false, \"phase\": \"verifier\", \"quality\": {\"candidate\": null, \"candidate_sha256\": null, \"checks\": [{\"adapter\": \"text\", \"contract\": {\"adapter\": \"text\", \"contains\": [\"# Release checklist\"], \"criterion\": \"The document has the agreed heading.\", \"excludes\": [], \"id\": \"structure\", \"path\": \"report.md\", \"purpose\": \"verification\"}, \"criterion\": \"The document has the agreed heading.\", \"evidence_kind\": \"deterministic_file_check\", \"id\": \"structure\", \"observations\": {\"forbidden\": [], \"missing\": []}, \"purpose\": \"verification\", \"state\": \"pass\"}, {\"adapter\": \"text\", \"contract\": {\"adapter\": \"text\", \"contains\": [\"Scope: local files\", \"Evidence: recorded checks\"], \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\", \"excludes\": [\"TBD\", \"guaranteed correctness\"], \"id\": \"scope-and-evidence\", \"path\": \"report.md\", \"purpose\": \"validation\"}, \"criterion\": \"Required scope/evidence text is present and prohibited claims are absent.\", \"evidence_kind\": \"deterministic_file_check\", \"id\": \"scope-and-evidence\", \"observations\": {\"forbidden\": [], \"missing\": []}, \"purpose\": \"validation\", \"state\": \"pass\"}], \"passed\": true, \"unbound\": true, \"validation\": {\"checked\": [\"scope-and-evidence\"], \"failed\": [], \"state\": \"pass\"}, \"verification\": {\"checked\": [\"structure\"], \"failed\": [], \"state\": \"pass\"}}, \"quality_historical\": true, \"reason\": null, \"run_id\": \"golden\", \"schema_version\": 1, \"state\": \"checkpoint\", \"state_schema_version\": 3, \"time_remaining_seconds\": 0, \"validation\": null, \"verification\": null, \"verifier\": null}\n"
+    }
+  }
+}

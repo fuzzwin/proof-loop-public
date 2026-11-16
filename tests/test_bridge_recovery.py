@@ -13,8 +13,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from proofloop import bridge
-from proofloop import core
+from proofloop import bridge, bridge_commands, core, filesystem, status, validation
 from test_agent_bridge import AgentBridgeTests, ScriptedHost
 
 
@@ -37,7 +36,7 @@ class RecoveryTests(unittest.TestCase):
             if path == self.root / 'other.py':
                 raise OSError('synthetic promotion interruption')
             return atomic(path, *args, **kwargs)
-        with patch('proofloop.bridge.core.atomic_write', side_effect=fail_second):
+        with patch('proofloop.core.atomic_write', side_effect=fail_second):
             with self.assertRaisesRegex(OSError, 'promotion interruption'):
                 loop.advance()
         return loop
@@ -232,25 +231,25 @@ class RecoveryTests(unittest.TestCase):
         requirements = [{'id': 'R1', 'description': 'Must work'}]
         response = {'verdict': 'pass', 'candidate_sha256': 'candidate', 'findings': [], 'requirements': []}
         with self.assertRaisesRegex(ValueError, 'every requirement'):
-            bridge.validate_response('verifier', response, 'candidate', requirements)
+            validation.validate_response('verifier', response, 'candidate', requirements)
         response['requirements'] = [{'id': 'R1', 'status': 'not_checked', 'evidence': [], 'reason': 'No runtime'}]
         with self.assertRaisesRegex(ValueError, 'unchecked'):
-            bridge.validate_response('verifier', response, 'candidate', requirements)
+            validation.validate_response('verifier', response, 'candidate', requirements)
         response['requirements'][0].update(status='pass', reason='Observed output')
         with self.assertRaisesRegex(ValueError, 'needs evidence'):
-            bridge.validate_response('verifier', response, 'candidate', requirements)
+            validation.validate_response('verifier', response, 'candidate', requirements)
 
     def test_preflight_and_status_are_read_only(self):
-        original = bridge.tree_map(self.root)
-        with patch('proofloop.bridge.shutil.which', return_value='/synthetic/codex'):
-            result = bridge.preflight(self.root, 'plan.json')
+        original = filesystem.tree_map(self.root)
+        with patch('proofloop.bridge_commands.shutil.which', return_value='/synthetic/codex'):
+            result = bridge_commands.preflight(self.root, 'plan.json')
         self.assertTrue(result['ready'])
-        self.assertEqual(original, bridge.tree_map(self.root))
+        self.assertEqual(original, filesystem.tree_map(self.root))
         self.open().advance(1)
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         with contextlib.redirect_stdout(io.StringIO()):
-            bridge.status_command(argparse.Namespace(root=str(self.root), run_id='trial', plan='plan.json'))
-        self.assertEqual(before, bridge.tree_map(self.root))
+            status.status_command(argparse.Namespace(root=str(self.root), run_id='trial', plan='plan.json'))
+        self.assertEqual(before, filesystem.tree_map(self.root))
 
     def test_usage_is_summed_once_and_unknown_is_not_zero(self):
         run = self.host.run

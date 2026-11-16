@@ -11,10 +11,8 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from proofloop import bridge, checks, core, filesystem, harness
 
-from proofloop import bridge
-from proofloop import harness
-from proofloop import checks as checks
 
 SOURCE = Path(__file__).resolve().parents[1]
 HOST = '''import json,sys,uuid
@@ -111,12 +109,12 @@ class HarnessTests(unittest.TestCase):
 
     def test_interrupted_promotion_can_be_recovered_via_harness_cli(self):
         loop = self.open()
-        atomic = bridge.core.atomic_write
+        atomic = core.atomic_write
         def interrupt(path, *args, **kwargs):
             if path == self.root / 'data.json':
                 raise OSError('synthetic interrupted promotion')
             return atomic(path, *args, **kwargs)
-        with patch.object(bridge.core, 'atomic_write', side_effect=interrupt):
+        with patch.object(core, 'atomic_write', side_effect=interrupt):
             with self.assertRaisesRegex(OSError, 'interrupted promotion'):
                 loop.advance()
         self.assertEqual('blocked_uncertain', loop.state['status'])
@@ -169,7 +167,7 @@ class HarnessTests(unittest.TestCase):
     def test_status_has_no_filesystem_writes_process_database_lock_or_codex(self):
         loop = self.open()
         loop.advance()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         original_open = os.open
         def readonly(path, flags, *args, **kwargs):
             self.assertFalse(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC))
@@ -178,7 +176,7 @@ class HarnessTests(unittest.TestCase):
               patch.object(subprocess, 'Popen', side_effect=AssertionError('process')),
               patch.object(sqlite3, 'connect', side_effect=AssertionError('database')),
               patch.object(bridge, 'CodexHost', side_effect=AssertionError('Codex')),
-              patch.object(bridge.core, 'project_lock', side_effect=AssertionError('lock')),
+              patch.object(core, 'project_lock', side_effect=AssertionError('lock')),
               patch.object(os, 'open', side_effect=readonly) as observed_open):
             # Preserve the capability declaration when instrumenting os.open.
             with patch.object(os, 'supports_dir_fd', os.supports_dir_fd | {observed_open}):
@@ -186,7 +184,7 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual('current', report['freshness']['state'], report)
         self.assertEqual('pass', report['validation']['state'])
         self.assertEqual('not_accepted', report['acceptance'])
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
 
     def test_zero_repair_budget_stops_before_any_host(self):
         self.task['limits']['max_repairs'] = 0

@@ -255,3 +255,18 @@ Validation commands for an applied candidate are:
 python3 pilot/acceptance.py
 python3 -m unittest discover -s tests -v
 ```
+
+## Validation API
+
+Package callers can use `proofloop.validation` to validate plans, host
+responses, test reports and saved evidence without opening a run. Use
+`parse_json` for JSON that rejects duplicate keys and nonfinite numbers.
+Use `is_sha256`, `validate_source_map`, `validate_file_modes`,
+`validate_directory_modes`, and `validate_process_result` to check saved
+fields. `summarize_stage_result` validates native quality and verifier stage
+results before producing their summaries.
+
+Use `proofloop.status.read_status` to inspect a saved run. That observer
+opens evidence relative to the project directory and uses the same
+validation helpers. These functions check evidence consistency. Portable
+receipt acceptance still uses `proofloop validate`.

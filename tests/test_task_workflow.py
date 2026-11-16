@@ -14,8 +14,7 @@ import unittest
 from unittest import mock
 from urllib.parse import unquote
 
-from proofloop import bridge
-from proofloop import task_workflow as tasks
+from proofloop import bridge, coordinator, filesystem, task_workflow as tasks
 from test_agent_bridge import ScriptedHost
 
 
@@ -62,10 +61,10 @@ class TaskWorkflowTests(unittest.TestCase):
 
     def test_completed_replay_keeps_all_hashes_and_calls(self):
         first = self.run_fix()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         second = self.run_fix()
         self.assertEqual(first, second)
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_missing_run_state_never_starts_a_new_dispatch(self):
@@ -98,7 +97,7 @@ class TaskWorkflowTests(unittest.TestCase):
         for raw in (b'', b'not a sqlite database'):
             with self.subTest(data=raw):
                 coordinator.write_bytes(raw)
-                before = bridge.tree_map(self.root)
+                before = filesystem.tree_map(self.root)
                 args = argparse.Namespace(root=str(self.root), run_id='fix', profile='proofloop-project.json',
                                           request='Make VALUE equal 2.', request_file=None, json=True)
                 output = io.StringIO()
@@ -108,7 +107,7 @@ class TaskWorkflowTests(unittest.TestCase):
                 result = json.loads(output.getvalue())
                 self.assertEqual(2, code)
                 self.assertEqual('missing_run_evidence', result['blocker']['code'])
-                self.assertEqual(before, bridge.tree_map(self.root))
+                self.assertEqual(before, filesystem.tree_map(self.root))
                 self.assertEqual(raw, coordinator.read_bytes())
                 self.assertEqual(2, len(self.host.calls))
                 coordinator.write_bytes(original)
@@ -120,11 +119,11 @@ class TaskWorkflowTests(unittest.TestCase):
         db.execute('DELETE FROM attempts WHERE run=?', ('agent:fix:0',))
         db.commit()
         db.close()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         result = self.run_fix()
         self.assertEqual('blocked', result['outcome'])
         self.assertEqual('missing_run_evidence', result['blocker']['code'])
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_missing_coordinator_operations_block_without_dispatch(self):
@@ -134,11 +133,11 @@ class TaskWorkflowTests(unittest.TestCase):
         db.execute("DELETE FROM operations WHERE key NOT LIKE '%:submit'")
         db.commit()
         db.close()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         result = self.run_fix()
         self.assertEqual('blocked', result['outcome'])
         self.assertEqual('missing_run_evidence', result['blocker']['code'])
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_coordinator_change_after_snapshot_blocks_replay(self):
@@ -187,7 +186,7 @@ class TaskWorkflowTests(unittest.TestCase):
 
     def test_completed_replay_reads_private_snapshot_without_opening_live_coordinator(self):
         original = self.run_fix()
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         original_connect = sqlite3.connect
         observed = []
         def inspect_snapshot(database, *args, **kwargs):
@@ -199,7 +198,7 @@ class TaskWorkflowTests(unittest.TestCase):
             fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 self.assertEqual(0, os.fstat(fd).st_mode & 0o077)
-                self.assertFalse(bridge._directory_has_acl(fd))
+                self.assertFalse(filesystem.directory_has_acl(fd))
             finally:
                 os.close(fd)
             observed.append(path)
@@ -208,11 +207,11 @@ class TaskWorkflowTests(unittest.TestCase):
             if sys.platform == 'darwin':
                 subprocess.run(['/bin/chmod', '+a', 'everyone allow read,execute,file_inherit,directory_inherit', tmp], check=True)
             with mock.patch.dict(os.environ, {'TMPDIR': tmp}):
-                with mock.patch.object(bridge.sqlite3, 'connect', side_effect=inspect_snapshot):
+                with mock.patch.object(sqlite3, 'connect', side_effect=inspect_snapshot):
                     replay = self.run_fix()
         self.assertEqual(original, replay, replay)
         self.assertTrue(observed)
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_interrupted_intake_without_run_state_never_dispatches(self):
@@ -235,7 +234,7 @@ class TaskWorkflowTests(unittest.TestCase):
         state_file = self.root / '.proof/agent-runs/fix/state.json'
         state = json.loads(state_file.read_text())
         state['diff']['path'] = 'app.py'
-        state['diff']['sha256'] = bridge.digest(self.root / 'app.py')
+        state['diff']['sha256'] = coordinator.digest(self.root / 'app.py')
         state_file.write_text(json.dumps(state))
         result = self.run_fix()
         self.assertEqual('blocked', result['outcome'])

@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 import sys
 
-from . import bridge
+from . import core, filesystem, validation
 from .coordinator import require
+from .processes import BridgeStop, expand
 
 ADAPTERS = {
     'json-equals': 'Exact typed JSON assertions using JSON Pointers.',
@@ -45,7 +46,7 @@ def validate_checks(checks, files, protected, *, allow_legacy=False):
     for check in checks:
         require(isinstance(check, dict), 'check must be an object')
         name = check.get('id')
-        require(isinstance(name, str) and bridge.core.RUN_ID_RE.fullmatch(name) and name not in ids,
+        require(isinstance(name, str) and core.RUN_ID_RE.fullmatch(name) and name not in ids,
                 'unique check ID required')
         ids.add(name)
         require(check.get('purpose') in ('verification', 'validation'), 'invalid check purpose')
@@ -62,7 +63,7 @@ def validate_checks(checks, files, protected, *, allow_legacy=False):
                 legal = legal - {'test_ids'}
         require(set(check) == legal, 'invalid fields for check ' + name)
         if kind in ('json-equals', 'text'):
-            bridge.relative_name(check['path'], legacy=allow_legacy)
+            filesystem.relative_name(check['path'], legacy=allow_legacy)
             require(check['path'] in files, 'check artifact must be a declared file')
         if kind == 'json-equals':
             assertions = check['assertions']
@@ -77,7 +78,7 @@ def validate_checks(checks, files, protected, *, allow_legacy=False):
             strings(check['excludes'], 'excludes', nonempty=False)
             require(check['contains'] or check['excludes'], 'at least one text assertion required')
         elif kind == 'python-unittest':
-            directory = bridge.relative_name(check['start_dir'], legacy=allow_legacy)
+            directory = filesystem.relative_name(check['start_dir'], legacy=allow_legacy)
             pattern = check['pattern']
             require(isinstance(pattern, str) and 0 < len(pattern) <= 128 and
                     '/' not in pattern and '\\' not in pattern and '\x00' not in pattern,
@@ -134,11 +135,6 @@ def exact(left, right):
 def value_hash(value):
     raw = json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
     return hashlib.sha256(raw).hexdigest()
-
-
-def expand(arguments, workspace):
-    return [sys.executable if a == '{python}' else a.replace('{workspace}', str(workspace))
-            for a in arguments]
 
 
 # The runner lives outside builder-editable files. Counts are observed on a
@@ -241,7 +237,7 @@ def run_checks(checks, files, directory, runner, remaining, cancelled, launched,
     results = []
     for index, check in enumerate(checks):
         if cancelled():
-            raise bridge.BridgeStop('cancelled')
+            raise BridgeStop('cancelled')
         remaining()
         folder = directory / ('check-' + str(index))
         folder.mkdir()
@@ -253,9 +249,9 @@ def run_checks(checks, files, directory, runner, remaining, cancelled, launched,
         kind, observed, process = check['adapter'], {}, None
         if kind in ('json-equals', 'text'):
             try:
-                raw = bridge.file_path(workspace, check['path']).read_bytes()
+                raw = filesystem.file_path(workspace, check['path']).read_bytes()
                 if kind == 'json-equals':
-                    value = bridge._status_json(raw)
+                    value = validation.parse_json(raw)
                     assertions = []
                     for assertion in check['assertions']:
                         try:
@@ -287,7 +283,7 @@ def run_checks(checks, files, directory, runner, remaining, cancelled, launched,
             try:
                 output = (folder / 'stdout.log').read_bytes()
                 require(len(output) <= MAX_CHECK_REPORT_BYTES, 'check report exceeds 256 KiB')
-                observed = bridge._status_json(output)
+                observed = validation.parse_json(output)
                 if kind == 'python-unittest':
                     passed = validate_unittest(observed, check, files, process['exit_code'])
                 else:
@@ -296,7 +292,7 @@ def run_checks(checks, files, directory, runner, remaining, cancelled, launched,
                     passed = observed['state'] == 'pass'
                     require((process['exit_code'] == 0) == passed, 'external result/exit disagree')
             except (ValueError, TypeError, KeyError, RecursionError) as exc:
-                raise bridge.BridgeStop('check protocol uncertain: ' + check['id'] + ': ' + str(exc)) from exc
+                raise BridgeStop('check protocol uncertain: ' + check['id'] + ': ' + str(exc)) from exc
         result = {k: check[k] for k in ('id', 'purpose', 'adapter', 'criterion')}
         result.update(state='pass' if passed else 'fail', observations=observed,
                       contract=check,
@@ -305,8 +301,8 @@ def run_checks(checks, files, directory, runner, remaining, cancelled, launched,
             result['process'] = process
         require(snapshot_state(workspace) == before, 'check changed its frozen snapshot')
         fresh()
-        require(len(bridge.core.canonical_json(result).encode()) <= MAX_CHECK_REPORT_BYTES,
+        require(len(core.canonical_json(result).encode()) <= MAX_CHECK_REPORT_BYTES,
                 'check report exceeds 256 KiB')
-        bridge.core.write_json(folder / 'check.json', result, exclusive=True)
+        core.write_json(folder / 'check.json', result, exclusive=True)
         results.append(result)
     return {'passed': all(c['state'] == 'pass' for c in results), 'checks': results, **summarize(results)}

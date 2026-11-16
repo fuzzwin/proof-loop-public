@@ -8,9 +8,8 @@ import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
+from proofloop import bridge, bridge_commands, core, filesystem
 
-from proofloop import bridge
-from proofloop import core
 
 
 class ScriptedHost:
@@ -128,9 +127,9 @@ class AgentBridgeTests(unittest.TestCase):
         self.assertNotIn('BUILDER-SUMMARY-MUST-NOT-REACH-VERIFIER', self.host.calls[-1][1])
         self.assertEqual(1, result['repair_rounds_used'])
         self.assertEqual('VALUE = 2\n', (self.root / 'app.py').read_text())
-        before = bridge.tree_map(self.root)
+        before = filesystem.tree_map(self.root)
         self.assertEqual(result, loop.advance())
-        self.assertEqual(before, bridge.tree_map(self.root))
+        self.assertEqual(before, filesystem.tree_map(self.root))
         self.assertEqual(2, len(self.host.calls))
 
     def test_matching_quality_still_needs_independent_verifier(self):
@@ -262,7 +261,7 @@ class AgentBridgeTests(unittest.TestCase):
     def test_cancel_between_checkpoints_never_launches_next_agent(self):
         loop = self.open()
         loop.advance(1)
-        bridge.cancel_command(argparse.Namespace(root=str(self.root), run_id='trial'))
+        bridge_commands.cancel_command(argparse.Namespace(root=str(self.root), run_id='trial'))
         self.assertEqual('cancelled', loop.advance()['state'])
         self.assertEqual([], self.host.calls)
 

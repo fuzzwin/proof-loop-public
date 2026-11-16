@@ -11,8 +11,8 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+from proofloop import bridge, status
 
-from proofloop import bridge
 
 
 def encoded(value):
@@ -87,7 +87,7 @@ class AgentStatusTests(unittest.TestCase):
         (self.directory / 'state.json').write_bytes(encoded(self.state))
 
     def inspect(self):
-        return bridge.read_status(self.root, 'unit', 'plan.json')
+        return status.read_status(self.root, 'unit', 'plan.json')
 
     def test_current_expired_checkpoint_never_constructs_host(self):
         before = (self.directory / 'state.json').read_bytes()
@@ -110,7 +110,7 @@ class AgentStatusTests(unittest.TestCase):
         plan_path.write_bytes(raw)
         self.state['plan_sha256'] = hashlib.sha256(raw).hexdigest()
         self.save()
-        report = bridge.read_status(self.root, 'unit', 'legacy\tplan.json')
+        report = status.read_status(self.root, 'unit', 'legacy\tplan.json')
         self.assertEqual('current', report['freshness']['state'], report)
 
     def test_missing_editable_creation_is_stale(self):
@@ -140,7 +140,7 @@ class AgentStatusTests(unittest.TestCase):
     def test_raw_path_aliases_are_rejected(self):
         for value in ('./plan.json', 'a//plan.json', 'a/../plan.json', '/plan.json'):
             with self.subTest(value=value):
-                report = bridge.read_status(self.root, 'unit', value)
+                report = status.read_status(self.root, 'unit', value)
                 self.assertEqual(report['freshness']['state'], 'unreadable')
 
     def test_duplicate_json_keys_and_overflow_are_rejected(self):

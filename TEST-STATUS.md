@@ -1,5 +1,18 @@
 # Test status
 
+## Phase 0 read-only CI
+
+[GitHub Actions run 43813450484](https://github.com/fuzzwin/proof-loop-public/actions/runs/43813450484) passed for PR head `8eb854fc09ab885111fe9b7c81ee579f69fdc387`. All four jobs checked out PR merge commit `1c41ac45c0bc4e73cee109a4bcd4cd063951ae3c`. The table records the runtimes and counts reported in the job logs.
+
+| Runner | Platform | CPython | Unit suite | Protected pilot | Smoke checks |
+| --- | --- | --- | --- | --- | --- |
+| ubuntu-latest | Linux-7.0.0-1019-azure-x86_64-with-glibc2.43 | 3.10.22 | 298 passed, 5 skipped | 20/20 | Both passed |
+| ubuntu-latest | Linux-7.0.0-1019-azure-x86_64-with-glibc2.43 | 3.13.18 | 298 passed, 5 skipped | 20/20 | Both passed |
+| macos-latest | macOS-26.7.2-arm64-arm-64bit | 3.10.11 | 303 passed, 0 skipped | 20/20 | Both passed |
+| macos-latest | macOS-26.7.2-arm64-arm-64bit-Mach-O | 3.13.17 | 303 passed, 0 skipped | 20/20 | Both passed |
+
+The five Ubuntu skips are the existing macOS extended ACL regressions. The protected pilot and smoke checks use synthetic evidence and exercise local behavior.
+
 ## Repair/recheck and scoped skill review: recorded 30 October 2026 UTC
 
 [Merged PR #4](https://github.com/fuzzwin/proof-loop-public/pull/4) reports **297 regression tests and 20 protected status acceptance tests passed**, along with clean-start/harness smoke checks and standard skill validation, on macOS arm64 with CPython 3.14.3. It also reports a fresh independent agent review with focused compatibility/negative cases and a synthetic repair/recheck/approval flow.

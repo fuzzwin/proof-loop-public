@@ -13,8 +13,8 @@ import time
 import unittest
 from unittest.mock import patch
 
-import agent_bridge as bridge
-import proofloop as core
+from proofloop import bridge
+from proofloop import core
 from test_agent_bridge import AgentBridgeTests, ScriptedHost
 
 
@@ -37,7 +37,7 @@ class RecoveryTests(unittest.TestCase):
             if path == self.root / 'other.py':
                 raise OSError('synthetic promotion interruption')
             return atomic(path, *args, **kwargs)
-        with patch('agent_bridge.core.atomic_write', side_effect=fail_second):
+        with patch('proofloop.bridge.core.atomic_write', side_effect=fail_second):
             with self.assertRaisesRegex(OSError, 'promotion interruption'):
                 loop.advance()
         return loop
@@ -124,7 +124,7 @@ class RecoveryTests(unittest.TestCase):
             if len(calls) == 2:
                 raise ValueError('coordinator evidence missing or invalid')
             return original_validate(*args, **kwargs)
-        with patch('agent_bridge.validate_existing_coordinator', side_effect=fail_completed):
+        with patch('proofloop.bridge.validate_existing_coordinator', side_effect=fail_completed):
             with self.assertRaisesRegex(ValueError, 'coordinator evidence missing or invalid'):
                 loop.recover_promotion()
         persisted = json.loads(loop.state_path.read_text())
@@ -242,7 +242,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_preflight_and_status_are_read_only(self):
         original = bridge.tree_map(self.root)
-        with patch('agent_bridge.shutil.which', return_value='/synthetic/codex'):
+        with patch('proofloop.bridge.shutil.which', return_value='/synthetic/codex'):
             result = bridge.preflight(self.root, 'plan.json')
         self.assertTrue(result['ready'])
         self.assertEqual(original, bridge.tree_map(self.root))

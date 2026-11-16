@@ -238,20 +238,22 @@ class StatusAcceptance(unittest.TestCase):
         for path in CANDIDATE.glob('*.py'):
             shutil.copy2(path, cls.code / path.name)
         shutil.copy2(CANDIDATE / 'proofloop', cls.code / 'proofloop')
-        cls.saved_modules = {name: sys.modules.pop(name, None) for name in
-                             ('proofloop', 'agent_bridge', 'coordinator')}
+        shutil.copytree(CANDIDATE / 'src', cls.code / 'src',
+                        ignore=shutil.ignore_patterns('__pycache__', '*.egg-info'))
+        cls.saved_modules = {name: sys.modules.pop(name) for name in tuple(sys.modules)
+                             if name == 'proofloop' or name.startswith('proofloop.')}
         sys.path.insert(0, str(cls.code))
-        cls.core = importlib.import_module('proofloop')
-        cls.bridge = importlib.import_module('agent_bridge')
-        cls.coordinator = importlib.import_module('coordinator')
+        cls.core = importlib.import_module('proofloop.core')
+        cls.bridge = importlib.import_module('proofloop.bridge')
+        cls.coordinator = importlib.import_module('proofloop.coordinator')
 
     @classmethod
     def tearDownClass(cls):
         sys.path.remove(str(cls.code))
-        for name, previous in cls.saved_modules.items():
-            sys.modules.pop(name, None)
-            if previous is not None:
-                sys.modules[name] = previous
+        for name in tuple(sys.modules):
+            if name == 'proofloop' or name.startswith('proofloop.'):
+                sys.modules.pop(name)
+        sys.modules.update(cls.saved_modules)
         cls.program_temp.cleanup()
 
     def setUp(self):

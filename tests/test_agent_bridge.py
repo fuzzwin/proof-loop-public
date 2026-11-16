@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import agent_bridge as bridge
-import proofloop as core
+from proofloop import bridge
+from proofloop import core
 
 
 class ScriptedHost:
@@ -114,7 +114,7 @@ class AgentBridgeTests(unittest.TestCase):
             db.commit()
             db.close()
             return fingerprint
-        with patch('agent_bridge.validate_existing_coordinator', side_effect=mutate):
+        with patch('proofloop.bridge.validate_existing_coordinator', side_effect=mutate):
             with self.assertRaisesRegex(ValueError, 'coordinator evidence changed since inspection'):
                 loop.advance()
         self.assertEqual([], self.host.calls)
@@ -254,7 +254,7 @@ class AgentBridgeTests(unittest.TestCase):
     def test_total_budget_survives_resume(self):
         loop = self.open()
         loop.advance(1)
-        with patch('agent_bridge.time.time', return_value=loop.state['deadline']+1):
+        with patch('proofloop.bridge.time.time', return_value=loop.state['deadline']+1):
             with self.assertRaisesRegex(ValueError, 'elapsed-time budget'):
                 loop.advance()
         self.assertEqual([], self.host.calls)
@@ -327,7 +327,7 @@ class AgentBridgeTests(unittest.TestCase):
             result = original(*args, **kwargs)
             clock[0] += self.plan['max_run_seconds'] + 1
             return result
-        with patch('agent_bridge.time.time', side_effect=lambda: clock[0]), patch.object(self.host, 'run', side_effect=expired_return):
+        with patch('proofloop.bridge.time.time', side_effect=lambda: clock[0]), patch.object(self.host, 'run', side_effect=expired_return):
             with self.assertRaisesRegex(ValueError, 'elapsed-time budget'):
                 loop.advance()
         self.assertEqual('VALUE = 1\n', (self.root / 'app.py').read_text())

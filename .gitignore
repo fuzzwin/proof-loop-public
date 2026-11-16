@@ -12,3 +12,8 @@ __pycache__/
 
 # Project-local run state (may include environment and task data)
 .proof/
+
+# Local package builds
+/build/
+/dist/
+/src/*.egg-info/

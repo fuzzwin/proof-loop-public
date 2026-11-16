@@ -7,7 +7,8 @@ It is an inspection command. It does not resume a run, dispatch an agent, run qu
 ## Before you start
 
 - Use Python 3.10 or newer on a POSIX host (macOS or Linux).
-- Run the command from a Proof Loop checkout that includes the `proofloop`, `proofloop.py`, and `agent_bridge.py` files.
+- Run the command from a Proof Loop checkout that includes the `proofloop` launcher and the `src/proofloop` package,
+  or use the installed `proofloop` command.
 - You do **not** need Codex installed, logged in, or running to inspect evidence.
 - Know the target project directory, the run ID, and that run's plan path. The plan path must be normalized and relative to the project root.
 - Do not delete locks or restart uncertain work just because a deadline passed. Read the report and reconcile the recorded stage first.

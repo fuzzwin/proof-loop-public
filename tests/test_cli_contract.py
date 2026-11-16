@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 CLI = Path(__file__).resolve().parents[1] / 'proofloop'
+INSTALLED_CLI = os.environ.get('PROOFLOOP_TEST_INSTALLED_CLI')
 FIXTURES = Path(__file__).resolve().parent / 'fixtures' / 'phase0'
 CLI_ENV = {
     **os.environ,
@@ -22,8 +23,15 @@ CLI_ENV = {
 
 
 def invoke(*args):
+    if INSTALLED_CLI:
+        executable = Path(INSTALLED_CLI).resolve()
+        command = [str(executable)]
+        cwd = executable.parent
+    else:
+        command = [sys.executable, '-B', str(CLI)]
+        cwd = None
     return subprocess.run(
-        [sys.executable, '-B', str(CLI), *map(str, args)],
+        [*command, *map(str, args)], cwd=cwd,
         capture_output=True, env=CLI_ENV, timeout=30,
     )
 

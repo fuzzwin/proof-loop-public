@@ -9,8 +9,8 @@ import io
 import json
 from pathlib import Path
 
-import proofloop as core
-from coordinator import Coordinator, digest, require
+from . import core
+from .coordinator import Coordinator, digest, require
 
 PLAN_FIELDS = {'adapter', 'check', 'source', 'view', 'acceptance_test', 'allow_repair'}
 

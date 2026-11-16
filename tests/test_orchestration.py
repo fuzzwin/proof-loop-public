@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-import proofloop
-from orchestration import SyntheticLoop
+from proofloop import cli as proofloop
+from proofloop.orchestration import SyntheticLoop
 
 
 class OrchestrationTests(unittest.TestCase):

@@ -2,7 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from improvement import ImprovementGate, stable_hash
+from proofloop.improvement import ImprovementGate, stable_hash
 
 
 def evaluator(base, candidate, dataset):

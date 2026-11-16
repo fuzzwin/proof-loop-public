@@ -48,7 +48,7 @@ A request has `key`, `operation`, and `args`. The host submits task contracts co
 - For reviewer-required tasks, invokes a distinct reviewer and supplies that review's exact artifact hash and reference with `accept`. A caller-supplied reviewer name is attribution, not authenticated independence.
 - Uses `recover`/`reconcile` on uncertain outcomes instead of automatic duplicate work. Version conflicts stop the action. Reusing an idempotency key returns the historical response; independently read `snapshot` for current state.
 
-The deterministic host in `orchestration.py` actually uses these operations, but does not dispatch GPT/Codex models. The separate `agent_bridge.py` now dispatches native Codex sessions, binds reported IDs and exact candidates, limits calls/time/repairs and stops uncertain outcomes. Its host, cancellation and review limits are documented in AGENT-BRIDGE.md. Model selection and API spending remain outside the deterministic implementation. Multiple databases do not share a global resource lock; one project must use one coordinator database.
+The deterministic host in `src/proofloop/orchestration.py` actually uses these operations, but does not dispatch GPT/Codex models. The separate `src/proofloop/bridge.py` now dispatches native Codex sessions, binds reported IDs and exact candidates, limits calls/time/repairs and stops uncertain outcomes. Its host, cancellation and review limits are documented in AGENT-BRIDGE.md. Model selection and API spending remain outside the deterministic implementation. Multiple databases do not share a global resource lock; one project must use one coordinator database.
 
 ## Learning without self-authorizing
 

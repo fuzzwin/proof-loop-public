@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 import test_coordinator as base
 from test_coordinator import task
-from coordinator import digest
+from proofloop.coordinator import digest
 
 
 class DependencyFreshness(unittest.TestCase):
@@ -45,7 +45,7 @@ class DependencyFreshness(unittest.TestCase):
     def test_unreadable_ancestor_before_claim(self):
         from unittest.mock import patch
         self.chain()
-        with patch('coordinator.digest', side_effect=PermissionError('synthetic unreadable')):
+        with patch('proofloop.coordinator.digest', side_effect=PermissionError('synthetic unreadable')):
             with self.assertRaisesRegex(ValueError, 'dependency artifact'):
                 self.apply('claim', 'b')
 

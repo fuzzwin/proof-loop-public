@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import proofloop as core
-from orchestration import SyntheticLoop
+from proofloop import core
+from proofloop.orchestration import SyntheticLoop
 
 
 class ReviewRegressions(unittest.TestCase):

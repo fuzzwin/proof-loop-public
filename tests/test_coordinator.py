@@ -2,7 +2,7 @@ import concurrent.futures
 import tempfile
 import unittest
 from pathlib import Path
-from coordinator import Coordinator, digest
+from proofloop.coordinator import Coordinator, digest
 
 
 def task(name, deps=None, resources=None, reviewer=None):

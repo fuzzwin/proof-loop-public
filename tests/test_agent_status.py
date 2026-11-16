@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-import agent_bridge as bridge
+from proofloop import bridge
 
 
 def encoded(value):

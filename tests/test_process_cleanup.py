@@ -11,7 +11,7 @@ import time
 import unittest
 from unittest import mock
 
-from agent_bridge import BridgeStop, ProcessRunner
+from proofloop.bridge import BridgeStop, ProcessRunner
 
 
 @unittest.skipUnless(os.name == 'posix', 'POSIX process groups required')
@@ -40,7 +40,7 @@ class ProcessCleanupTests(unittest.TestCase):
             os.waitpid(self.pids[0], os.WNOHANG)
 
     def test_denied_signal_after_exit_requires_positive_group_absence(self):
-        with mock.patch('agent_bridge.os.killpg', side_effect=self.denied_signal):
+        with mock.patch('proofloop.bridge.os.killpg', side_effect=self.denied_signal):
             result = self.run_process('print("done")')
         self.assertEqual(result['exit_code'], 0)
         self.assert_reaped()
@@ -51,8 +51,8 @@ class ProcessCleanupTests(unittest.TestCase):
         self.assertEqual(report['status'], 'complete')
 
     def test_output_limit_reaps_live_leader_and_preserves_original_failure(self):
-        with mock.patch('agent_bridge.os.killpg', side_effect=self.denied_signal), \
-             mock.patch('agent_bridge.MAX_LOG_BYTES', 64):
+        with mock.patch('proofloop.bridge.os.killpg', side_effect=self.denied_signal), \
+             mock.patch('proofloop.bridge.MAX_LOG_BYTES', 64):
             with self.assertRaisesRegex(BridgeStop, '^process output limit$'):
                 self.run_process('import time; print("x"*1024, flush=True); time.sleep(60)')
         self.assert_reaped()
@@ -69,7 +69,7 @@ class ProcessCleanupTests(unittest.TestCase):
                 f'subprocess.Popen([sys.executable,"-c",{child_code!r}])\n'
                 'time.sleep(60)')
         try:
-            with mock.patch('agent_bridge.os.killpg', side_effect=self.denied_signal):
+            with mock.patch('proofloop.bridge.os.killpg', side_effect=self.denied_signal):
                 with self.assertRaisesRegex(BridgeStop, 'cleanup uncertain.*original failure: cancelled'):
                     self.run_process(code, cancelled=heartbeat.exists)
             self.assert_reaped()
@@ -87,7 +87,7 @@ class ProcessCleanupTests(unittest.TestCase):
                     pass
 
     def test_denied_probe_cannot_authorize_success_even_after_leader_exit(self):
-        with mock.patch('agent_bridge.os.killpg', side_effect=PermissionError(errno.EPERM, 'denied')):
+        with mock.patch('proofloop.bridge.os.killpg', side_effect=PermissionError(errno.EPERM, 'denied')):
             with self.assertRaisesRegex(BridgeStop, 'cleanup uncertain'):
                 self.run_process('pass')
         self.assert_reaped()
@@ -99,7 +99,7 @@ class ProcessCleanupTests(unittest.TestCase):
         proc.poll.return_value = None
         proc.kill.side_effect = PermissionError(errno.EPERM, 'leader denied')
         proc.wait.side_effect = subprocess.TimeoutExpired('synthetic', 5)
-        with mock.patch('agent_bridge.os.killpg', side_effect=PermissionError(errno.EPERM, 'group denied')):
+        with mock.patch('proofloop.bridge.os.killpg', side_effect=PermissionError(errno.EPERM, 'group denied')):
             with self.assertRaisesRegex(BridgeStop, 'cleanup uncertain.*original failure: cancelled'):
                 ProcessRunner.cleanup(proc, self.root, BridgeStop('cancelled'))
         timeout = proc.wait.call_args.kwargs['timeout']

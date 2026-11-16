@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 import sys
 
-import agent_bridge as bridge
-from coordinator import require
+from . import bridge
+from .coordinator import require
 
 ADAPTERS = {
     'json-equals': 'Exact typed JSON assertions using JSON Pointers.',

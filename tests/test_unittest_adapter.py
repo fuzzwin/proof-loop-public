@@ -6,7 +6,7 @@ import sys
 import tempfile
 import unittest
 
-import agent_bridge as bridge
+from proofloop import bridge
 from test_agent_bridge import ScriptedHost
 
 
@@ -87,7 +87,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(['test_sample.T.test_one'], result['coverage']['missing'])
 
     def test_real_multifile_repair_requirement_evidence_and_replay(self):
-        example = Path(bridge.__file__).parent / 'examples' / 'order-total'
+        example = Path(__file__).resolve().parents[1] / 'examples' / 'order-total'
         shutil.copytree(example, self.workspace, dirs_exist_ok=True)
         changes = [
             {'path': 'pricing.py', 'content': "from decimal import Decimal, ROUND_HALF_UP\ndef discounted_price(price, discount):\n return (Decimal(str(price)) * (1 - Decimal(str(discount)))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n"},

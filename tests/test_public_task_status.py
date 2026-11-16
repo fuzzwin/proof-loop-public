@@ -10,8 +10,8 @@ import time
 import unittest
 from unittest import mock
 
-import agent_bridge as bridge
-import task_workflow as tasks
+from proofloop import bridge
+from proofloop import task_workflow as tasks
 from test_task_workflow import TaskHost
 
 
@@ -122,7 +122,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         self.assertEqual([], self.host.calls)
 
     def test_missing_request_file_returns_json_blocker(self):
-        result = subprocess.run([sys.executable, '-B', str(Path(tasks.__file__).with_name('proofloop')),
+        result = subprocess.run([sys.executable, '-B', str(Path(__file__).resolve().parents[1] / 'proofloop'),
                                  'fix', '--root', str(self.root), '--request-file', 'missing.txt', '--json'],
                                 capture_output=True, text=True)
         self.assertEqual(2, result.returncode)
@@ -133,7 +133,7 @@ class PublicTaskStatusTests(unittest.TestCase):
         link = self.root.parent / (self.root.name + '-link')
         link.symlink_to(self.root, target_is_directory=True)
         self.addCleanup(link.unlink)
-        result = subprocess.run([sys.executable, '-B', str(Path(tasks.__file__).with_name('proofloop')),
+        result = subprocess.run([sys.executable, '-B', str(Path(__file__).resolve().parents[1] / 'proofloop'),
                                  'fix', '--root', str(link), '--request', 'Fix VALUE.', '--json'],
                                 capture_output=True, text=True)
         self.assertEqual(2, result.returncode)

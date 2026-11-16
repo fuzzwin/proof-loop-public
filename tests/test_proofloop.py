@@ -409,7 +409,7 @@ class ProofLoopTests(unittest.TestCase):
 
     def test_version_precondition_rejects_stale_write(self):
         sys.path.insert(0, str(ROOT))
-        import proofloop
+        from proofloop import core as proofloop
         path = self.root / "cas.json"
         path.write_text('{"value":1}\n')
         old_hash = hashlib.sha256(path.read_bytes()).hexdigest()
